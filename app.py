@@ -4,7 +4,6 @@ import os
 from functools import wraps
 import hashlib
 import psycopg2
-from psycopg2.extras import RealDictCursor
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -30,7 +29,16 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
     
-    # Sellers table
+    # Drop existing tables to start fresh (will keep data? no, but ensures structure is correct)
+    # Comment these out if you want to keep existing data
+    # c.execute("DROP TABLE IF EXISTS subscription_requests")
+    # c.execute("DROP TABLE IF EXISTS products")
+    # c.execute("DROP TABLE IF EXISTS buyers")
+    # c.execute("DROP TABLE IF EXISTS sellers")
+    # c.execute("DROP TABLE IF EXISTS bank_settings")
+    # conn.commit()
+    
+    # Create sellers table
     c.execute('''CREATE TABLE IF NOT EXISTS sellers (
         id SERIAL PRIMARY KEY,
         business_name TEXT NOT NULL,
@@ -48,10 +56,10 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Products table
+    # Create products table
     c.execute('''CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
-        seller_id INTEGER NOT NULL REFERENCES sellers(id),
+        seller_id INTEGER NOT NULL,
         product_name TEXT NOT NULL,
         price REAL NOT NULL,
         description TEXT,
@@ -59,10 +67,11 @@ def init_db():
         whatsapp TEXT NOT NULL,
         image_url TEXT,
         category TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (seller_id) REFERENCES sellers(id) ON DELETE CASCADE
     )''')
     
-    # Buyers table
+    # Create buyers table
     c.execute('''CREATE TABLE IF NOT EXISTS buyers (
         id SERIAL PRIMARY KEY,
         full_name TEXT NOT NULL,
@@ -74,19 +83,20 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Subscription requests table
+    # Create subscription_requests table
     c.execute('''CREATE TABLE IF NOT EXISTS subscription_requests (
         id SERIAL PRIMARY KEY,
-        seller_id INTEGER NOT NULL REFERENCES sellers(id),
+        seller_id INTEGER NOT NULL,
         plan TEXT NOT NULL,
         amount REAL NOT NULL,
         months INTEGER NOT NULL,
         proof_image TEXT NOT NULL,
         status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (seller_id) REFERENCES sellers(id) ON DELETE CASCADE
     )''')
     
-    # Bank account settings
+    # Create bank_settings table
     c.execute('''CREATE TABLE IF NOT EXISTS bank_settings (
         id SERIAL PRIMARY KEY,
         bank_name TEXT,
@@ -97,14 +107,14 @@ def init_db():
     
     conn.commit()
     
-    # Insert default bank account
+    # Insert default bank account if not exists
     c.execute("SELECT * FROM bank_settings")
     if not c.fetchone():
         c.execute("INSERT INTO bank_settings (bank_name, account_name, account_number) VALUES (%s, %s, %s)",
                   ('Bank Name Here', 'Account Holder Name', 'Account Number Here'))
         conn.commit()
     
-    # Insert owner account
+    # Insert owner account if not exists
     c.execute("SELECT * FROM sellers WHERE email = 'owner@mymarketplace.com'")
     if not c.fetchone():
         hashed_password = hashlib.sha256('0880Owner+_+'.encode()).hexdigest()
@@ -148,21 +158,16 @@ def owner_required(f):
 def index():
     conn = get_db()
     c = conn.cursor()
+    today = datetime.now().date()
     
-    try:
-        today = datetime.now().date()
-        c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp
-            FROM products p 
-            JOIN sellers s ON p.seller_id = s.id 
-            WHERE s.is_active = TRUE 
-            AND (s.is_paid = TRUE OR s.trial_end >= %s)
-            ORDER BY p.created_at DESC LIMIT 12''', (today,))
-        products = c.fetchall()
-    except Exception as e:
-        products = []
-        print(f"Error: {e}")
-    
+    c.execute('''SELECT p.*, s.business_name 
+        FROM products p 
+        JOIN sellers s ON p.seller_id = s.id 
+        WHERE s.is_active = TRUE AND (s.is_paid = TRUE OR s.trial_end >= %s)
+        ORDER BY p.created_at DESC LIMIT 12''', (today,))
+    products = c.fetchall()
     conn.close()
+    
     return render_template('index.html', products=products)
 
 @app.route('/search')
@@ -175,43 +180,36 @@ def search():
     
     conn = get_db()
     c = conn.cursor()
-    
     today = datetime.now().date()
-    sql = '''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp
+    
+    sql = '''SELECT p.*, s.business_name 
         FROM products p 
         JOIN sellers s ON p.seller_id = s.id 
-        WHERE s.is_active = TRUE 
-        AND (s.is_paid = TRUE OR s.trial_end >= %s)'''
+        WHERE s.is_active = TRUE AND (s.is_paid = TRUE OR s.trial_end >= %s)'''
     params = [today]
     
     if query:
         sql += " AND (p.product_name ILIKE %s OR p.description ILIKE %s)"
         params.extend([f'%{query}%', f'%{query}%'])
-    
     if category:
         sql += " AND p.category = %s"
         params.append(category)
-    
     if min_price:
         sql += " AND p.price >= %s"
         params.append(float(min_price))
-    
     if max_price:
         sql += " AND p.price <= %s"
         params.append(float(max_price))
-    
     if location:
         sql += " AND p.location ILIKE %s"
         params.append(f'%{location}%')
     
     sql += " ORDER BY p.created_at DESC"
-    
     c.execute(sql, params)
     products = c.fetchall()
     
     c.execute("SELECT DISTINCT category FROM products WHERE category IS NOT NULL")
     categories = [row[0] for row in c.fetchall()]
-    
     conn.close()
     
     return render_template('search.html', products=products, query=query, 
@@ -257,10 +255,9 @@ def register_seller():
         profile_pic = None
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
-            if file and file.filename != '' and allowed_file(file.filename):
+            if file and file.filename and allowed_file(file.filename):
                 filename = secure_filename(f"seller_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
-                filepath = os.path.join(app.config['PROFILE_FOLDER'], filename)
-                file.save(filepath)
+                file.save(os.path.join(app.config['PROFILE_FOLDER'], filename))
                 profile_pic = f"/static/uploads/profiles/{filename}"
         
         conn = get_db()
@@ -292,10 +289,9 @@ def register_buyer():
         profile_pic = None
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
-            if file and file.filename != '' and allowed_file(file.filename):
+            if file and file.filename and allowed_file(file.filename):
                 filename = secure_filename(f"buyer_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
-                filepath = os.path.join(app.config['PROFILE_FOLDER'], filename)
-                file.save(filepath)
+                file.save(os.path.join(app.config['PROFILE_FOLDER'], filename))
                 profile_pic = f"/static/uploads/profiles/{filename}"
         
         conn = get_db()
@@ -326,36 +322,34 @@ def login():
         c = conn.cursor()
         
         if user_type == 'seller':
-            c.execute("SELECT * FROM sellers WHERE email = %s AND password = %s", (email, password))
+            c.execute("SELECT id, business_name, email, is_active FROM sellers WHERE email = %s AND password = %s", (email, password))
             user = c.fetchone()
-            if user and user[3] != 'owner@mymarketplace.com':
-                if not user[12]:
-                    flash('Your account has been deactivated. Contact admin.', 'danger')
+            if user:
+                if not user[3]:
+                    flash('Your account has been deactivated', 'danger')
+                else:
+                    session['user_id'] = user[0]
+                    session['user_type'] = 'seller'
+                    session['user_name'] = user[1]
+                    flash(f'Welcome {user[1]}!', 'success')
                     conn.close()
-                    return redirect(url_for('login'))
-                session['user_id'] = user[0]
-                session['user_type'] = 'seller'
-                session['user_name'] = user[1]
-                flash(f'Welcome {user[1]}!', 'success')
-                conn.close()
-                return redirect(url_for('seller_dashboard'))
+                    return redirect(url_for('seller_dashboard'))
             else:
                 flash('Invalid email or password', 'danger')
         
         elif user_type == 'buyer':
-            c.execute("SELECT * FROM buyers WHERE email = %s AND password = %s", (email, password))
+            c.execute("SELECT id, full_name, is_active FROM buyers WHERE email = %s AND password = %s", (email, password))
             user = c.fetchone()
             if user:
-                if not user[6]:
-                    flash('Your account has been deactivated. Contact admin.', 'danger')
+                if not user[2]:
+                    flash('Your account has been deactivated', 'danger')
+                else:
+                    session['user_id'] = user[0]
+                    session['user_type'] = 'buyer'
+                    session['user_name'] = user[1]
+                    flash(f'Welcome {user[1]}!', 'success')
                     conn.close()
-                    return redirect(url_for('login'))
-                session['user_id'] = user[0]
-                session['user_type'] = 'buyer'
-                session['user_name'] = user[1]
-                flash(f'Welcome {user[1]}!', 'success')
-                conn.close()
-                return redirect(url_for('buyer_dashboard'))
+                    return redirect(url_for('buyer_dashboard'))
             else:
                 flash('Invalid email or password', 'danger')
         
@@ -387,12 +381,8 @@ def seller_dashboard():
     conn.close()
     
     return render_template('seller_dashboard.html', 
-                         seller=seller, 
-                         products=products, 
-                         trial_days_left=trial_days_left,
-                         is_on_trial=is_on_trial,
-                         is_subscribed=is_subscribed,
-                         pending_request=pending_request)
+                         seller=seller, products=products, trial_days_left=trial_days_left,
+                         is_on_trial=is_on_trial, is_subscribed=is_subscribed, pending_request=pending_request)
 
 @app.route('/seller/edit_account', methods=['GET', 'POST'])
 @seller_required
@@ -406,17 +396,16 @@ def seller_edit_account():
         phone = request.form['phone']
         whatsapp = request.form['whatsapp']
         
+        c.execute("UPDATE sellers SET business_name=%s, owner_name=%s, phone=%s, whatsapp=%s WHERE id=%s",
+                 (business_name, owner_name, phone, whatsapp, session['user_id']))
+        
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
-            if file and file.filename != '' and allowed_file(file.filename):
+            if file and file.filename and allowed_file(file.filename):
                 filename = secure_filename(f"seller_{session['user_id']}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
-                filepath = os.path.join(app.config['PROFILE_FOLDER'], filename)
-                file.save(filepath)
-                profile_pic = f"/static/uploads/profiles/{filename}"
-                c.execute("UPDATE sellers SET profile_pic = %s WHERE id = %s", (profile_pic, session['user_id']))
+                file.save(os.path.join(app.config['PROFILE_FOLDER'], filename))
+                c.execute("UPDATE sellers SET profile_pic=%s WHERE id=%s", (f"/static/uploads/profiles/{filename}", session['user_id']))
         
-        c.execute("UPDATE sellers SET business_name = %s, owner_name = %s, phone = %s, whatsapp = %s WHERE id = %s",
-                 (business_name, owner_name, phone, whatsapp, session['user_id']))
         conn.commit()
         flash('Account updated successfully!', 'success')
         return redirect(url_for('seller_dashboard'))
@@ -433,7 +422,7 @@ def seller_edit_product(product_id):
     conn = get_db()
     c = conn.cursor()
     
-    c.execute("SELECT * FROM products WHERE id = %s AND seller_id = %s", (product_id, session['user_id']))
+    c.execute("SELECT * FROM products WHERE id=%s AND seller_id=%s", (product_id, session['user_id']))
     product = c.fetchone()
     
     if not product:
@@ -451,15 +440,12 @@ def seller_edit_product(product_id):
         image_url = product[7]
         if 'product_image' in request.files:
             file = request.files['product_image']
-            if file and file.filename != '' and allowed_file(file.filename):
+            if file and file.filename and allowed_file(file.filename):
                 filename = secure_filename(f"product_{session['user_id']}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                 image_url = f"/static/uploads/products/{filename}"
         
-        c.execute('''UPDATE products SET product_name = %s, price = %s, description = %s, 
-                     location = %s, whatsapp = %s, category = %s, image_url = %s 
-                     WHERE id = %s''',
+        c.execute('''UPDATE products SET product_name=%s, price=%s, description=%s, location=%s, whatsapp=%s, category=%s, image_url=%s WHERE id=%s''',
                  (product_name, price, description, location, whatsapp, category, image_url, product_id))
         conn.commit()
         flash('Product updated successfully!', 'success')
@@ -467,50 +453,6 @@ def seller_edit_product(product_id):
     
     conn.close()
     return render_template('seller_edit_product.html', product=product)
-
-@app.route('/seller/subscribe', methods=['GET', 'POST'])
-@seller_required
-def subscribe():
-    conn = get_db()
-    c = conn.cursor()
-    
-    if request.method == 'POST':
-        plan = request.form['plan']
-        amount = float(request.form['amount'])
-        months = int(request.form['months'])
-        
-        if 'proof_image' not in request.files:
-            flash('Please upload payment proof', 'danger')
-            return redirect(url_for('subscribe'))
-        
-        file = request.files['proof_image']
-        if file.filename == '':
-            flash('Please select a file', 'danger')
-            return redirect(url_for('subscribe'))
-        
-        filename = secure_filename(f"proof_{session['user_id']}_{int(datetime.now().timestamp())}.jpg")
-        filepath = os.path.join('static/uploads/proofs', filename)
-        file.save(filepath)
-        
-        c.execute('''INSERT INTO subscription_requests (seller_id, plan, amount, months, proof_image, status)
-        VALUES (%s, %s, %s, %s, %s, 'pending')''', (session['user_id'], plan, amount, months, filename))
-        conn.commit()
-        
-        flash('Subscription request sent! Admin will verify.', 'success')
-        return redirect(url_for('seller_dashboard'))
-    
-    c.execute("SELECT * FROM bank_settings LIMIT 1")
-    bank = c.fetchone()
-    conn.close()
-    
-    plans = [
-        {'name': '1 Month', 'months': 1, 'price': 10},
-        {'name': '3 Months', 'months': 3, 'price': 20},
-        {'name': '6 Months', 'months': 6, 'price': 35},
-        {'name': '12 Months', 'months': 12, 'price': 50}
-    ]
-    
-    return render_template('subscribe.html', bank=bank, plans=plans)
 
 @app.route('/seller/add_product', methods=['GET', 'POST'])
 @seller_required
@@ -526,10 +468,9 @@ def add_product():
         image_url = None
         if 'product_image' in request.files:
             file = request.files['product_image']
-            if file and file.filename != '' and allowed_file(file.filename):
+            if file and file.filename and allowed_file(file.filename):
                 filename = secure_filename(f"product_{session['user_id']}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(filepath)
+                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
                 image_url = f"/static/uploads/products/{filename}"
         
         conn = get_db()
@@ -550,11 +491,51 @@ def add_product():
 def seller_delete_product(product_id):
     conn = get_db()
     c = conn.cursor()
-    c.execute("DELETE FROM products WHERE id = %s AND seller_id = %s", (product_id, session['user_id']))
+    c.execute("DELETE FROM products WHERE id=%s AND seller_id=%s", (product_id, session['user_id']))
     conn.commit()
     conn.close()
     flash('Product deleted', 'success')
     return redirect(url_for('seller_dashboard'))
+
+@app.route('/seller/subscribe', methods=['GET', 'POST'])
+@seller_required
+def subscribe():
+    conn = get_db()
+    c = conn.cursor()
+    
+    if request.method == 'POST':
+        plan = request.form['plan']
+        amount = float(request.form['amount'])
+        months = int(request.form['months'])
+        
+        if 'proof_image' not in request.files:
+            flash('Please upload payment proof', 'danger')
+            return redirect(url_for('subscribe'))
+        
+        file = request.files['proof_image']
+        if not file or not file.filename:
+            flash('Please select a file', 'danger')
+            return redirect(url_for('subscribe'))
+        
+        filename = secure_filename(f"proof_{session['user_id']}_{int(datetime.now().timestamp())}.jpg")
+        file.save(os.path.join('static/uploads/proofs', filename))
+        
+        c.execute('''INSERT INTO subscription_requests (seller_id, plan, amount, months, proof_image, status)
+        VALUES (%s, %s, %s, %s, %s, 'pending')''', (session['user_id'], plan, amount, months, filename))
+        conn.commit()
+        flash('Subscription request sent! Admin will verify.', 'success')
+        return redirect(url_for('seller_dashboard'))
+    
+    c.execute("SELECT * FROM bank_settings LIMIT 1")
+    bank = c.fetchone()
+    conn.close()
+    
+    plans = [{'name': '1 Month', 'months': 1, 'price': 10},
+             {'name': '3 Months', 'months': 3, 'price': 20},
+             {'name': '6 Months', 'months': 6, 'price': 35},
+             {'name': '12 Months', 'months': 12, 'price': 50}]
+    
+    return render_template('subscribe.html', bank=bank, plans=plans)
 
 @app.route('/buyer/dashboard')
 def buyer_dashboard():
@@ -564,17 +545,16 @@ def buyer_dashboard():
     
     conn = get_db()
     c = conn.cursor()
-    
     today = datetime.now().date()
-    c.execute('''SELECT p.*, s.business_name
+    
+    c.execute('''SELECT p.*, s.business_name 
         FROM products p 
         JOIN sellers s ON p.seller_id = s.id 
-        WHERE s.is_active = TRUE 
-        AND (s.is_paid = TRUE OR s.trial_end >= %s)
+        WHERE s.is_active = TRUE AND (s.is_paid = TRUE OR s.trial_end >= %s)
         ORDER BY p.created_at DESC''', (today,))
     products = c.fetchall()
-    
     conn.close()
+    
     return render_template('buyer_dashboard.html', products=products)
 
 @app.route('/buyer/edit_account', methods=['GET', 'POST'])
@@ -589,17 +569,15 @@ def buyer_edit_account():
         full_name = request.form['full_name']
         phone = request.form['phone']
         
+        c.execute("UPDATE buyers SET full_name=%s, phone=%s WHERE id=%s", (full_name, phone, session['user_id']))
+        
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
-            if file and file.filename != '' and allowed_file(file.filename):
+            if file and file.filename and allowed_file(file.filename):
                 filename = secure_filename(f"buyer_{session['user_id']}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
-                filepath = os.path.join(app.config['PROFILE_FOLDER'], filename)
-                file.save(filepath)
-                profile_pic = f"/static/uploads/profiles/{filename}"
-                c.execute("UPDATE buyers SET profile_pic = %s WHERE id = %s", (profile_pic, session['user_id']))
+                file.save(os.path.join(app.config['PROFILE_FOLDER'], filename))
+                c.execute("UPDATE buyers SET profile_pic=%s WHERE id=%s", (f"/static/uploads/profiles/{filename}", session['user_id']))
         
-        c.execute("UPDATE buyers SET full_name = %s, phone = %s WHERE id = %s",
-                 (full_name, phone, session['user_id']))
         conn.commit()
         flash('Account updated successfully!', 'success')
         return redirect(url_for('buyer_dashboard'))
@@ -626,10 +604,8 @@ def admin_dashboard():
     buyers = c.fetchall()
     
     c.execute('''SELECT r.*, s.business_name, s.email 
-        FROM subscription_requests r 
-        JOIN sellers s ON r.seller_id = s.id 
-        WHERE r.status = 'pending'
-        ORDER BY r.created_at DESC''')
+        FROM subscription_requests r JOIN sellers s ON r.seller_id = s.id 
+        WHERE r.status = 'pending' ORDER BY r.created_at DESC''')
     subscription_requests = c.fetchall()
     
     c.execute("SELECT * FROM bank_settings LIMIT 1")
@@ -638,21 +614,12 @@ def admin_dashboard():
     c.execute("SELECT COUNT(*) FROM products")
     total_products = c.fetchone()[0]
     
-    stats = {
-        'total_sellers': len(sellers),
-        'total_products': total_products,
-        'total_buyers': len(buyers),
-        'pending_requests': len(subscription_requests)
-    }
+    stats = {'total_sellers': len(sellers), 'total_products': total_products, 
+             'total_buyers': len(buyers), 'pending_requests': len(subscription_requests)}
     
     conn.close()
-    return render_template('admin_dashboard.html', 
-                         sellers=sellers, 
-                         products=products, 
-                         buyers=buyers,
-                         subscription_requests=subscription_requests,
-                         bank=bank,
-                         stats=stats)
+    return render_template('admin_dashboard.html', sellers=sellers, products=products, 
+                         buyers=buyers, subscription_requests=subscription_requests, bank=bank, stats=stats)
 
 @app.route('/admin/toggle_seller/<int:seller_id>')
 @owner_required
@@ -705,17 +672,15 @@ def approve_subscription(request_id):
     conn = get_db()
     c = conn.cursor()
     
-    c.execute("SELECT * FROM subscription_requests WHERE id = %s", (request_id,))
+    c.execute("SELECT seller_id, months FROM subscription_requests WHERE id = %s", (request_id,))
     req = c.fetchone()
     if req:
-        seller_id = req[1]
-        months = req[4]
-        
+        seller_id, months = req
         subscription_end = datetime.now().date() + timedelta(days=30 * months)
         c.execute("UPDATE sellers SET is_paid = TRUE, subscription_end = %s WHERE id = %s", (subscription_end, seller_id))
         c.execute("UPDATE subscription_requests SET status = 'approved' WHERE id = %s", (request_id,))
         conn.commit()
-        flash('Subscription approved! Products are now visible to buyers.', 'success')
+        flash('Subscription approved!', 'success')
     
     conn.close()
     return redirect(url_for('admin_dashboard'))
@@ -740,11 +705,10 @@ def update_bank():
     
     conn = get_db()
     c = conn.cursor()
-    c.execute("UPDATE bank_settings SET bank_name = %s, account_name = %s, account_number = %s, updated_at = CURRENT_TIMESTAMP", 
+    c.execute("UPDATE bank_settings SET bank_name=%s, account_name=%s, account_number=%s, updated_at=CURRENT_TIMESTAMP", 
               (bank_name, account_name, account_number))
     conn.commit()
     conn.close()
-    
     flash('Bank details updated!', 'success')
     return redirect(url_for('admin_dashboard'))
 
@@ -765,8 +729,9 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('index'))
 
+# Initialize database
 with app.app_context():
     init_db()
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=10000)
