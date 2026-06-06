@@ -9,10 +9,12 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here-change-this-2024'
 app.config['UPLOAD_FOLDER'] = 'static/uploads/products'
+app.config['PROFILE_FOLDER'] = 'static/uploads/profiles'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['PROFILE_FOLDER'], exist_ok=True)
 os.makedirs('static/uploads/proofs', exist_ok=True)
 
 def allowed_file(filename):
@@ -27,6 +29,7 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
     
+    # Sellers table with profile picture
     c.execute('''CREATE TABLE IF NOT EXISTS sellers (
         id SERIAL PRIMARY KEY,
         business_name TEXT NOT NULL,
@@ -35,6 +38,7 @@ def init_db():
         phone TEXT NOT NULL,
         whatsapp TEXT NOT NULL,
         password TEXT NOT NULL,
+        profile_pic TEXT,
         trial_start DATE NOT NULL,
         trial_end DATE NOT NULL,
         subscription_end DATE,
@@ -43,6 +47,7 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # Products table
     c.execute('''CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
         seller_id INTEGER NOT NULL REFERENCES sellers(id),
@@ -56,15 +61,19 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # Buyers table with profile picture
     c.execute('''CREATE TABLE IF NOT EXISTS buyers (
         id SERIAL PRIMARY KEY,
         full_name TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
         phone TEXT,
         password TEXT NOT NULL,
+        profile_pic TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # Subscription requests table
     c.execute('''CREATE TABLE IF NOT EXISTS subscription_requests (
         id SERIAL PRIMARY KEY,
         seller_id INTEGER NOT NULL REFERENCES sellers(id),
@@ -76,6 +85,7 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # Bank account settings
     c.execute('''CREATE TABLE IF NOT EXISTS bank_settings (
         id SERIAL PRIMARY KEY,
         bank_name TEXT,
@@ -137,10 +147,8 @@ def index():
     c = conn.cursor()
     
     try:
-        # Show products from sellers who are:
-        # 1. Active AND (paid OR still on trial)
         today = datetime.now().date()
-        c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
+        c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp, s.profile_pic as seller_pic
             FROM products p 
             JOIN sellers s ON p.seller_id = s.id 
             WHERE s.is_active = TRUE 
@@ -149,7 +157,6 @@ def index():
         products = c.fetchall()
     except Exception as e:
         products = []
-        print(f"Error: {e}")
     
     conn.close()
     return render_template('index.html', products=products)
@@ -166,7 +173,7 @@ def search():
     c = conn.cursor()
     
     today = datetime.now().date()
-    sql = '''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
+    sql = '''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp, s.profile_pic as seller_pic
         FROM products p 
         JOIN sellers s ON p.seller_id = s.id 
         WHERE s.is_active = TRUE 
@@ -243,15 +250,25 @@ def register_seller():
         trial_start = datetime.now().date()
         trial_end = trial_start + timedelta(days=10)
         
+        # Handle profile picture
+        profile_pic = None
+        if 'profile_pic' in request.files:
+            file = request.files['profile_pic']
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(f"seller_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                filepath = os.path.join(app.config['PROFILE_FOLDER'], filename)
+                file.save(filepath)
+                profile_pic = f"/static/uploads/profiles/{filename}"
+        
         conn = get_db()
         c = conn.cursor()
         
         try:
-            c.execute('''INSERT INTO sellers (business_name, owner_name, email, phone, whatsapp, password, trial_start, trial_end, is_paid)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
-            (business_name, owner_name, email, phone, whatsapp, password, trial_start, trial_end, False))
+            c.execute('''INSERT INTO sellers (business_name, owner_name, email, phone, whatsapp, password, profile_pic, trial_start, trial_end, is_paid)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+            (business_name, owner_name, email, phone, whatsapp, password, profile_pic, trial_start, trial_end, False))
             conn.commit()
-            flash('Registration successful! You have 10 days free trial. Your products will be visible to buyers during trial. After trial ends, subscribe to continue.', 'success')
+            flash('Registration successful! You have 10 days free trial.', 'success')
             return redirect(url_for('login'))
         except psycopg2.IntegrityError:
             flash('Email already registered', 'danger')
@@ -269,12 +286,22 @@ def register_buyer():
         phone = request.form['phone']
         password = hashlib.sha256(request.form['password'].encode()).hexdigest()
         
+        # Handle profile picture
+        profile_pic = None
+        if 'profile_pic' in request.files:
+            file = request.files['profile_pic']
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(f"buyer_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                filepath = os.path.join(app.config['PROFILE_FOLDER'], filename)
+                file.save(filepath)
+                profile_pic = f"/static/uploads/profiles/{filename}"
+        
         conn = get_db()
         c = conn.cursor()
         
         try:
-            c.execute('INSERT INTO buyers (full_name, email, phone, password) VALUES (%s, %s, %s, %s)',
-                     (full_name, email, phone, password))
+            c.execute('INSERT INTO buyers (full_name, email, phone, password, profile_pic) VALUES (%s, %s, %s, %s, %s)',
+                     (full_name, email, phone, password, profile_pic))
             conn.commit()
             flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
@@ -300,6 +327,10 @@ def login():
             c.execute("SELECT * FROM sellers WHERE email = %s AND password = %s", (email, password))
             user = c.fetchone()
             if user and user[3] != 'owner@mymarketplace.com':
+                if not user[11]:  # is_active check
+                    flash('Your account has been deactivated. Contact admin.', 'danger')
+                    conn.close()
+                    return redirect(url_for('login'))
                 session['user_id'] = user[0]
                 session['user_type'] = 'seller'
                 session['user_name'] = user[1]
@@ -313,6 +344,10 @@ def login():
             c.execute("SELECT * FROM buyers WHERE email = %s AND password = %s", (email, password))
             user = c.fetchone()
             if user:
+                if not user[6]:  # is_active check
+                    flash('Your account has been deactivated. Contact admin.', 'danger')
+                    conn.close()
+                    return redirect(url_for('login'))
                 session['user_id'] = user[0]
                 session['user_type'] = 'buyer'
                 session['user_name'] = user[1]
@@ -339,16 +374,10 @@ def seller_dashboard():
     products = c.fetchall()
     
     today = datetime.now().date()
-    trial_start = seller[7]
     trial_end = seller[8]
-    is_paid = seller[9]
-    
     trial_days_left = (trial_end - today).days if trial_end >= today else 0
-    is_on_trial = trial_days_left > 0 and not is_paid
-    is_subscribed = is_paid
-    
-    # Check if products are visible to buyers
-    products_visible = is_subscribed or is_on_trial
+    is_on_trial = trial_days_left > 0 and not seller[10]
+    is_subscribed = seller[10]
     
     c.execute("SELECT * FROM subscription_requests WHERE seller_id = %s AND status = 'pending'", (session['user_id'],))
     pending_request = c.fetchone()
@@ -361,8 +390,86 @@ def seller_dashboard():
                          trial_days_left=trial_days_left,
                          is_on_trial=is_on_trial,
                          is_subscribed=is_subscribed,
-                         products_visible=products_visible,
                          pending_request=pending_request)
+
+@app.route('/seller/edit_account', methods=['GET', 'POST'])
+@seller_required
+def seller_edit_account():
+    conn = get_db()
+    c = conn.cursor()
+    
+    if request.method == 'POST':
+        business_name = request.form['business_name']
+        owner_name = request.form['owner_name']
+        phone = request.form['phone']
+        whatsapp = request.form['whatsapp']
+        
+        # Handle profile picture update
+        profile_pic = None
+        if 'profile_pic' in request.files:
+            file = request.files['profile_pic']
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(f"seller_{session['user_id']}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                filepath = os.path.join(app.config['PROFILE_FOLDER'], filename)
+                file.save(filepath)
+                profile_pic = f"/static/uploads/profiles/{filename}"
+                
+                c.execute("UPDATE sellers SET profile_pic = %s WHERE id = %s", (profile_pic, session['user_id']))
+        
+        c.execute("UPDATE sellers SET business_name = %s, owner_name = %s, phone = %s, whatsapp = %s WHERE id = %s",
+                 (business_name, owner_name, phone, whatsapp, session['user_id']))
+        conn.commit()
+        flash('Account updated successfully!', 'success')
+        return redirect(url_for('seller_dashboard'))
+    
+    c.execute("SELECT * FROM sellers WHERE id = %s", (session['user_id'],))
+    seller = c.fetchone()
+    conn.close()
+    
+    return render_template('seller_edit_account.html', seller=seller)
+
+@app.route('/seller/edit_product/<int:product_id>', methods=['GET', 'POST'])
+@seller_required
+def seller_edit_product(product_id):
+    conn = get_db()
+    c = conn.cursor()
+    
+    # Verify product belongs to seller
+    c.execute("SELECT * FROM products WHERE id = %s AND seller_id = %s", (product_id, session['user_id']))
+    product = c.fetchone()
+    
+    if not product:
+        flash('Product not found', 'danger')
+        return redirect(url_for('seller_dashboard'))
+    
+    if request.method == 'POST':
+        product_name = request.form['product_name']
+        price = float(request.form['price'])
+        description = request.form['description']
+        location = request.form['location']
+        whatsapp = request.form['whatsapp']
+        category = request.form.get('category', 'General')
+        
+        # Handle image update
+        image_url = product[7]
+        if 'product_image' in request.files:
+            file = request.files['product_image']
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(f"product_{session['user_id']}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                image_url = f"/static/uploads/products/{filename}"
+        
+        c.execute('''UPDATE products SET product_name = %s, price = %s, description = %s, 
+                     location = %s, whatsapp = %s, category = %s, image_url = %s 
+                     WHERE id = %s''',
+                 (product_name, price, description, location, whatsapp, category, image_url, product_id))
+        conn.commit()
+        flash('Product updated successfully!', 'success')
+        return redirect(url_for('seller_dashboard'))
+    
+    conn.close()
+    return render_template('seller_edit_product.html', product=product)
 
 @app.route('/seller/subscribe', methods=['GET', 'POST'])
 @seller_required
@@ -392,7 +499,7 @@ def subscribe():
         VALUES (%s, %s, %s, %s, %s, 'pending')''', (session['user_id'], plan, amount, months, filename))
         conn.commit()
         
-        flash('Subscription request sent! Admin will verify. Once approved, your products will remain visible after trial ends.', 'success')
+        flash('Subscription request sent! Admin will verify.', 'success')
         return redirect(url_for('seller_dashboard'))
     
     c.execute("SELECT * FROM bank_settings LIMIT 1")
@@ -462,7 +569,7 @@ def buyer_dashboard():
     c = conn.cursor()
     
     today = datetime.now().date()
-    c.execute('''SELECT p.*, s.business_name 
+    c.execute('''SELECT p.*, s.business_name, s.profile_pic as seller_pic
         FROM products p 
         JOIN sellers s ON p.seller_id = s.id 
         WHERE s.is_active = TRUE 
@@ -472,6 +579,40 @@ def buyer_dashboard():
     
     conn.close()
     return render_template('buyer_dashboard.html', products=products)
+
+@app.route('/buyer/edit_account', methods=['GET', 'POST'])
+def buyer_edit_account():
+    if session.get('user_type') != 'buyer':
+        return redirect(url_for('login'))
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    if request.method == 'POST':
+        full_name = request.form['full_name']
+        phone = request.form['phone']
+        
+        # Handle profile picture update
+        if 'profile_pic' in request.files:
+            file = request.files['profile_pic']
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(f"buyer_{session['user_id']}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                filepath = os.path.join(app.config['PROFILE_FOLDER'], filename)
+                file.save(filepath)
+                profile_pic = f"/static/uploads/profiles/{filename}"
+                c.execute("UPDATE buyers SET profile_pic = %s WHERE id = %s", (profile_pic, session['user_id']))
+        
+        c.execute("UPDATE buyers SET full_name = %s, phone = %s WHERE id = %s",
+                 (full_name, phone, session['user_id']))
+        conn.commit()
+        flash('Account updated successfully!', 'success')
+        return redirect(url_for('buyer_dashboard'))
+    
+    c.execute("SELECT * FROM buyers WHERE id = %s", (session['user_id'],))
+    buyer = c.fetchone()
+    conn.close()
+    
+    return render_template('buyer_edit_account.html', buyer=buyer)
 
 @app.route('/admin/dashboard')
 @owner_required
@@ -517,6 +658,53 @@ def admin_dashboard():
                          bank=bank,
                          stats=stats)
 
+@app.route('/admin/toggle_seller/<int:seller_id>')
+@owner_required
+def toggle_seller(seller_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("UPDATE sellers SET is_active = NOT is_active WHERE id = %s", (seller_id,))
+    conn.commit()
+    conn.close()
+    flash('Seller status updated', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/delete_seller/<int:seller_id>')
+@owner_required
+def delete_seller(seller_id):
+    conn = get_db()
+    c = conn.cursor()
+    # First delete seller's products
+    c.execute("DELETE FROM products WHERE seller_id = %s", (seller_id,))
+    # Then delete seller
+    c.execute("DELETE FROM sellers WHERE id = %s", (seller_id,))
+    conn.commit()
+    conn.close()
+    flash('Seller and all their products deleted', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/toggle_buyer/<int:buyer_id>')
+@owner_required
+def toggle_buyer(buyer_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("UPDATE buyers SET is_active = NOT is_active WHERE id = %s", (buyer_id,))
+    conn.commit()
+    conn.close()
+    flash('Buyer status updated', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/delete_buyer/<int:buyer_id>')
+@owner_required
+def delete_buyer(buyer_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("DELETE FROM buyers WHERE id = %s", (buyer_id,))
+    conn.commit()
+    conn.close()
+    flash('Buyer deleted', 'success')
+    return redirect(url_for('admin_dashboard'))
+
 @app.route('/admin/approve_subscription/<int:request_id>')
 @owner_required
 def approve_subscription(request_id):
@@ -533,7 +721,7 @@ def approve_subscription(request_id):
         c.execute("UPDATE sellers SET is_paid = TRUE, subscription_end = %s WHERE id = %s", (subscription_end, seller_id))
         c.execute("UPDATE subscription_requests SET status = 'approved' WHERE id = %s", (request_id,))
         conn.commit()
-        flash('Subscription approved! Products are now permanently visible to buyers.', 'success')
+        flash('Subscription approved! Products are now visible to buyers.', 'success')
     
     conn.close()
     return redirect(url_for('admin_dashboard'))
@@ -564,17 +752,6 @@ def update_bank():
     conn.close()
     
     flash('Bank details updated!', 'success')
-    return redirect(url_for('admin_dashboard'))
-
-@app.route('/admin/toggle_seller/<int:seller_id>')
-@owner_required
-def toggle_seller(seller_id):
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("UPDATE sellers SET is_active = NOT is_active WHERE id = %s", (seller_id,))
-    conn.commit()
-    conn.close()
-    flash('Seller status updated', 'success')
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/delete_product/<int:product_id>')
