@@ -42,28 +42,29 @@
                             <div class="card bg-success text-white">
                                 <div class="card-body">
                                     <h5>✅ Subscription Active</h5>
-                                    <p>Your products are visible to buyers under your business name: <strong>{{ session.user_name }}</strong></p>
+                                    <p>Your products are visible to buyers. Thank you for your support!</p>
                                 </div>
                             </div>
                         </div>
                     {% elif is_on_trial %}
                         <div class="col-md-12">
-                            <div class="card bg-warning text-dark">
+                            <div class="card bg-success text-white">
                                 <div class="card-body">
-                                    <h5>🎉 Free Trial Period - {{ trial_days_left }} days remaining</h5>
-                                    <p>You are on your 10-day free trial! You can add products during trial.</p>
-                                    <p class="mb-0"><strong>Note:</strong> Your products will ONLY be visible to buyers after you subscribe and admin approves.</p>
+                                    <h5>🎉 Free Trial Active - {{ trial_days_left }} days remaining</h5>
+                                    <p>✅ <strong>Your products are VISIBLE to buyers during trial!</strong></p>
+                                    <p>After {{ trial_days_left }} days, your products will be hidden until you subscribe.</p>
                                     <hr>
-                                    <a href="/seller/subscribe" class="btn btn-dark">Subscribe Now (After Trial)</a>
+                                    <a href="/seller/subscribe" class="btn btn-light">Subscribe Now (To Continue After Trial)</a>
                                 </div>
                             </div>
                         </div>
                     {% elif pending_request %}
                         <div class="col-md-12">
-                            <div class="card bg-info text-white">
+                            <div class="card bg-warning text-dark">
                                 <div class="card-body">
                                     <h5>⏳ Subscription Pending</h5>
-                                    <p>Admin is reviewing your payment. Once approved, your products will be visible to buyers.</p>
+                                    <p>Your trial has ended. Admin is reviewing your payment.</p>
+                                    <p>⚠️ Your products are currently HIDDEN from buyers until approval.</p>
                                 </div>
                             </div>
                         </div>
@@ -71,8 +72,9 @@
                         <div class="col-md-12">
                             <div class="card bg-danger text-white">
                                 <div class="card-body">
-                                    <h5>⚠️ Subscription Required</h5>
-                                    <p>Your free trial has ended. Subscribe now to continue selling and make your products visible to buyers.</p>
+                                    <h5>⚠️ Trial Ended - Subscription Required</h5>
+                                    <p>Your free trial has ended. Your products are HIDDEN from buyers.</p>
+                                    <p>Subscribe now to make your products visible again!</p>
                                     <a href="/seller/subscribe" class="btn btn-light">Subscribe Now</a>
                                 </div>
                             </div>
@@ -89,7 +91,7 @@
                             <div class="table-responsive">
                                 <table class="table table-bordered">
                                     <thead>
-                                        <tr><th>Image</th><th>Product</th><th>Price</th><th>Location</th><th>WhatsApp</th><th>Action</th></tr>
+                                        <tr><th>Image</th><th>Product</th><th>Price</th><th>Location</th><th>WhatsApp</th><th>Visibility</th><th>Action</th></tr>
                                     </thead>
                                     <tbody>
                                         {% for product in products %}
@@ -105,6 +107,13 @@
                                             <td>${{ product[3] }}</td>
                                             <td>{{ product[5] }}</td>
                                             <td>{{ product[6] }}</td>
+                                            <td>
+                                                {% if is_subscribed or is_on_trial %}
+                                                    <span class="badge bg-success">Visible to Buyers</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger">Hidden</span>
+                                                {% endif %}
+                                            </td>
                                             <td><a href="/seller/delete_product/{{ product[0] }}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this product?')">Delete</a></td>
                                         </tr>
                                         {% endfor %}
@@ -120,17 +129,14 @@
                     </div>
                 </div>
                 
-                {% if is_on_trial and not is_subscribed %}
                 <div class="alert alert-info mt-3">
-                    <i class="fas fa-info-circle"></i> <strong>How it works:</strong>
-                    <ol class="mb-0 mt-2">
-                        <li>You can add products during your 10-day free trial</li>
-                        <li>Your products are saved but NOT visible to buyers yet</li>
-                        <li>After trial, subscribe and upload payment proof</li>
-                        <li>Admin approves → Your products become visible to buyers</li>
-                    </ol>
+                    <i class="fas fa-info-circle"></i> <strong>How visibility works:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>✅ <strong>During 10-day trial:</strong> Your products are VISIBLE to buyers</li>
+                        <li>⚠️ <strong>After trial ends:</strong> Your products become HIDDEN from buyers</li>
+                        <li>💰 <strong>Subscribe:</strong> Upload payment proof → Admin approves → Products become VISIBLE again</li>
+                    </ul>
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>

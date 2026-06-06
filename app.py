@@ -137,14 +137,19 @@ def index():
     c = conn.cursor()
     
     try:
+        # Show products from sellers who are:
+        # 1. Active AND (paid OR still on trial)
+        today = datetime.now().date()
         c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
             FROM products p 
             JOIN sellers s ON p.seller_id = s.id 
-            WHERE s.is_active = TRUE AND s.is_paid = TRUE
-            ORDER BY p.created_at DESC LIMIT 12''')
+            WHERE s.is_active = TRUE 
+            AND (s.is_paid = TRUE OR s.trial_end >= %s)
+            ORDER BY p.created_at DESC LIMIT 12''', (today,))
         products = c.fetchall()
-    except:
+    except Exception as e:
         products = []
+        print(f"Error: {e}")
     
     conn.close()
     return render_template('index.html', products=products)
@@ -160,11 +165,13 @@ def search():
     conn = get_db()
     c = conn.cursor()
     
+    today = datetime.now().date()
     sql = '''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
         FROM products p 
         JOIN sellers s ON p.seller_id = s.id 
-        WHERE s.is_active = TRUE AND s.is_paid = TRUE'''
-    params = []
+        WHERE s.is_active = TRUE 
+        AND (s.is_paid = TRUE OR s.trial_end >= %s)'''
+    params = [today]
     
     if query:
         sql += " AND (p.product_name ILIKE %s OR p.description ILIKE %s)"
@@ -244,7 +251,7 @@ def register_seller():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
             (business_name, owner_name, email, phone, whatsapp, password, trial_start, trial_end, False))
             conn.commit()
-            flash('Registration successful! You have 10 days free trial. You can add products during trial. After trial, you must subscribe to continue.', 'success')
+            flash('Registration successful! You have 10 days free trial. Your products will be visible to buyers during trial. After trial ends, subscribe to continue.', 'success')
             return redirect(url_for('login'))
         except psycopg2.IntegrityError:
             flash('Email already registered', 'danger')
@@ -336,14 +343,12 @@ def seller_dashboard():
     trial_end = seller[8]
     is_paid = seller[9]
     
-    # Calculate trial days left
     trial_days_left = (trial_end - today).days if trial_end >= today else 0
-    
-    # Check if seller is on trial (trial not ended AND not paid)
     is_on_trial = trial_days_left > 0 and not is_paid
-    
-    # Check if subscription is active (paid)
     is_subscribed = is_paid
+    
+    # Check if products are visible to buyers
+    products_visible = is_subscribed or is_on_trial
     
     c.execute("SELECT * FROM subscription_requests WHERE seller_id = %s AND status = 'pending'", (session['user_id'],))
     pending_request = c.fetchone()
@@ -356,6 +361,7 @@ def seller_dashboard():
                          trial_days_left=trial_days_left,
                          is_on_trial=is_on_trial,
                          is_subscribed=is_subscribed,
+                         products_visible=products_visible,
                          pending_request=pending_request)
 
 @app.route('/seller/subscribe', methods=['GET', 'POST'])
@@ -386,7 +392,7 @@ def subscribe():
         VALUES (%s, %s, %s, %s, %s, 'pending')''', (session['user_id'], plan, amount, months, filename))
         conn.commit()
         
-        flash('Subscription request sent! Admin will verify.', 'success')
+        flash('Subscription request sent! Admin will verify. Once approved, your products will remain visible after trial ends.', 'success')
         return redirect(url_for('seller_dashboard'))
     
     c.execute("SELECT * FROM bank_settings LIMIT 1")
@@ -455,11 +461,13 @@ def buyer_dashboard():
     conn = get_db()
     c = conn.cursor()
     
+    today = datetime.now().date()
     c.execute('''SELECT p.*, s.business_name 
         FROM products p 
         JOIN sellers s ON p.seller_id = s.id 
-        WHERE s.is_active = TRUE AND s.is_paid = TRUE
-        ORDER BY p.created_at DESC''')
+        WHERE s.is_active = TRUE 
+        AND (s.is_paid = TRUE OR s.trial_end >= %s)
+        ORDER BY p.created_at DESC''', (today,))
     products = c.fetchall()
     
     conn.close()
@@ -525,7 +533,7 @@ def approve_subscription(request_id):
         c.execute("UPDATE sellers SET is_paid = TRUE, subscription_end = %s WHERE id = %s", (subscription_end, seller_id))
         c.execute("UPDATE subscription_requests SET status = 'approved' WHERE id = %s", (request_id,))
         conn.commit()
-        flash('Subscription approved! Products are now visible to buyers.', 'success')
+        flash('Subscription approved! Products are now permanently visible to buyers.', 'success')
     
     conn.close()
     return redirect(url_for('admin_dashboard'))
