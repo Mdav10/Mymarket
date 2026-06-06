@@ -42,7 +42,7 @@
                             <div class="card bg-success text-white">
                                 <div class="card-body">
                                     <h5>✅ Subscription Active</h5>
-                                    <p>Your products are visible to buyers.</p>
+                                    <p>Your products are visible to buyers under your business name: <strong>{{ session.user_name }}</strong></p>
                                 </div>
                             </div>
                         </div>
@@ -81,7 +81,7 @@
 
                 <div class="card">
                     <div class="card-header">
-                        <h5>My Products ({{ products|length }})</h5>
+                        <h5>My Products ({{ products|length }}) - Selling as: <strong>{{ session.user_name }}</strong></h5>
                     </div>
                     <div class="card-body">
                         {% if products %}
@@ -93,9 +93,8 @@
                                     <tbody>
                                         {% for product in products %}
                                         <tr>
-                                            <td>{{ product[2] }}</td>
-                                            <td>${{ product[3] }}</td>
-                                            <td>{{ product[5] }}</td>
+                                            <td>{{ product[2] }}<br>{% if product[7] %}<img src="{{ product[7] }}" style="height: 50px;">{% endif %}</td>
+                                            <td>${{ product[3] }}</td><td>{{ product[5] }}</td>
                                             <td>{{ product[6] }}</td>
                                             <td><a href="/seller/delete_product/{{ product[0] }}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this product?')">Delete</a></td>
                                         </tr>

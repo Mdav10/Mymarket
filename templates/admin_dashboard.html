@@ -77,9 +77,7 @@
                                 {% for req in subscription_requests %}
                                 <tr>
                                     <td>{{ req[7] }}<br><small>{{ req[8] }}</small></td>
-                                    <td>{{ req[2] }}</td>
-                                    <td>${{ req[3] }}</td>
-                                    <td>{{ req[4] }} months</td>
+                                    <td>{{ req[2] }}</td><td>${{ req[3] }}</td><td>{{ req[4] }} months</td>
                                     <td><a href="/static/uploads/proofs/{{ req[5] }}" target="_blank" class="btn btn-sm btn-info">View Proof</a></td>
                                     <td>
                                         <a href="/admin/approve_subscription/{{ req[0] }}" class="btn btn-sm btn-success">Approve</a>
@@ -134,9 +132,8 @@
                         <tbody>
                             {% for seller in sellers %}
                             <tr>
-                                <td>{{ seller[1] }}</td>
-                                <td>{{ seller[3] }}</td>
-                                <td>{{ seller[4] }}</td>
+                                <td>{{ seller[1] }}<br><small>{{ seller[2] }}</small></td>
+                                <td>{{ seller[3] }}</td><td>{{ seller[4] }}</td>
                                 <td>{% if seller[9] %}Paid{% else %}Trial/Expired{% endif %}</td>
                                 <td>
                                     <a href="/admin/toggle_seller/{{ seller[0] }}" class="btn btn-sm btn-warning">
@@ -155,21 +152,20 @@
 
         <div class="card">
             <div class="card-header bg-success text-white">
-                <h5>All Products</h5>
+                <h5>All Products (Seller names shown)</h5>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table table-bordered">
                         <thead>
-                            <tr><th>Product</th><th>Seller</th><th>Price</th><th>Location</th><th>Action</th></tr>
+                            <tr><th>Product</th><th>Seller Name</th><th>Price</th><th>Location</th><th>Action</th></tr>
                         </thead>
                         <tbody>
                             {% for product in products %}
                             <tr>
-                                <td>{{ product[2] }}</td>
-                                <td>{{ product[12] if product|length > 12 else 'Unknown' }}</td>
-                                <td>${{ product[3] }}</td>
-                                <td>{{ product[5] }}</td>
+                                <td>{{ product[2] }}<br><small>{{ product[4][:50] if product[4] else '' }}...</small></td>
+                                <td><strong>{{ product[12] }}</strong><br><small>Seller ID: {{ product[1] }}</small></td>
+                                <td>${{ product[3] }}</td><td>{{ product[5] }}</td>
                                 <td><a href="/admin/delete_product/{{ product[0] }}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this product?')">Delete</a></td>
                             </tr>
                             {% else %}

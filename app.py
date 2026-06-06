@@ -135,21 +135,59 @@ def owner_required(f):
 
 @app.route('/')
 def index():
+    return redirect(url_for('buyer_dashboard'))
+
+@app.route('/search')
+def search():
+    query = request.args.get('q', '')
+    category = request.args.get('category', '')
+    min_price = request.args.get('min_price', '')
+    max_price = request.args.get('max_price', '')
+    location = request.args.get('location', '')
+    
     conn = get_db()
     c = conn.cursor()
     
-    try:
-        c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
-            FROM products p 
-            JOIN sellers s ON p.seller_id = s.id 
-            WHERE s.is_active = TRUE AND s.is_paid = TRUE
-            ORDER BY p.created_at DESC LIMIT 30''')
-        products = c.fetchall()
-    except:
-        products = []
+    sql = '''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
+        FROM products p 
+        JOIN sellers s ON p.seller_id = s.id 
+        WHERE s.is_active = TRUE AND s.is_paid = TRUE'''
+    params = []
+    
+    if query:
+        sql += " AND (p.product_name ILIKE %s OR p.description ILIKE %s)"
+        params.extend([f'%{query}%', f'%{query}%'])
+    
+    if category:
+        sql += " AND p.category = %s"
+        params.append(category)
+    
+    if min_price:
+        sql += " AND p.price >= %s"
+        params.append(float(min_price))
+    
+    if max_price:
+        sql += " AND p.price <= %s"
+        params.append(float(max_price))
+    
+    if location:
+        sql += " AND p.location ILIKE %s"
+        params.append(f'%{location}%')
+    
+    sql += " ORDER BY p.created_at DESC"
+    
+    c.execute(sql, params)
+    products = c.fetchall()
+    
+    # Get categories for filter
+    c.execute("SELECT DISTINCT category FROM products WHERE category IS NOT NULL")
+    categories = [row[0] for row in c.fetchall()]
     
     conn.close()
-    return render_template('index.html', products=products)
+    
+    return render_template('search.html', products=products, query=query, 
+                         category=category, min_price=min_price, max_price=max_price,
+                         location=location, categories=categories)
 
 @app.route('/owner/login', methods=['GET', 'POST'])
 def owner_login():
@@ -279,7 +317,7 @@ def seller_dashboard():
     c.execute("SELECT * FROM sellers WHERE id = %s", (session['user_id'],))
     seller = c.fetchone()
     
-    c.execute("SELECT * FROM products WHERE seller_id = %s ORDER BY created_at DESC", (session['user_id'],))
+    c.execute("SELECT p.*, s.business_name FROM products p JOIN sellers s ON p.seller_id = s.id WHERE p.seller_id = %s ORDER BY p.created_at DESC", (session['user_id'],))
     products = c.fetchall()
     
     today = datetime.now().date()
@@ -354,7 +392,6 @@ def add_product():
         whatsapp = request.form['whatsapp']
         category = request.form.get('category', 'General')
         
-        # Handle image upload
         image_url = None
         if 'product_image' in request.files:
             file = request.files['product_image']
@@ -390,9 +427,6 @@ def seller_delete_product(product_id):
 
 @app.route('/buyer/dashboard')
 def buyer_dashboard():
-    if session.get('user_type') != 'buyer':
-        return redirect(url_for('login'))
-    
     conn = get_db()
     c = conn.cursor()
     
@@ -525,7 +559,7 @@ def admin_delete_product(product_id):
 def logout():
     session.clear()
     flash('Logged out successfully', 'success')
-    return redirect(url_for('index'))
+    return redirect(url_for('buyer_dashboard'))
 
 with app.app_context():
     init_db()

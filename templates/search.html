@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Products - My Market Place</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-store"></i> My Market Place</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/buyer/dashboard">All Products</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/search">Search</a>
+                    </li>
+                    {% if session.user_type == 'buyer' %}
+                        <li class="nav-item">
+                            <span class="nav-link text-white">Welcome, {{ session.user_name }}</span>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/login"><i class="fas fa-sign-in-alt"></i> Login</a>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-user-plus"></i> Register
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/register/seller"><i class="fas fa-store"></i> As Seller</a></li>
+                                <li><a class="dropdown-item" href="/register/buyer"><i class="fas fa-shopping-cart"></i> As Buyer</a></li>
+                            </ul>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <!-- Search Filters Sidebar -->
+            <div class="col-md-3">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h5><i class="fas fa-filter"></i> Filter Products</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="GET" action="/search">
+                            <div class="mb-3">
+                                <label>Search Keyword</label>
+                                <input type="text" name="q" class="form-control" placeholder="Product name..." value="{{ query }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label>Category</label>
+                                <select name="category" class="form-select">
+                                    <option value="">All Categories</option>
+                                    {% for cat in categories %}
+                                        <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label>Location</label>
+                                <input type="text" name="location" class="form-control" placeholder="City/Area..." value="{{ location }}">
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label>Min Price ($)</label>
+                                    <input type="number" name="min_price" class="form-control" placeholder="0" value="{{ min_price }}">
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>Max Price ($)</label>
+                                    <input type="number" name="max_price" class="form-control" placeholder="1000" value="{{ max_price }}">
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">Search</button>
+                            <a href="/search" class="btn btn-secondary w-100 mt-2">Clear Filters</a>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            <div class="col-md-9">
+                <div class="card shadow">
+                    <div class="card-header bg-success text-white">
+                        <h5>Search Results: {{ products|length }} products found</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if products %}
+                            <div class="row">
+                                {% for product in products %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="card h-100">
+                                        {% if product[7] %}
+                                            <img src="{{ product[7] }}" class="card-img-top" alt="{{ product[2] }}" style="height: 200px; object-fit: cover;">
+                                        {% else %}
+                                            <div class="bg-secondary text-white text-center py-5">
+                                                <i class="fas fa-image fa-3x"></i>
+                                                <p>No Image</p>
+                                            </div>
+                                        {% endif %}
+                                        <div class="card-body">
+                                            <h5 class="card-title">{{ product[2] }}</h5>
+                                            <h6 class="text-primary">${{ product[3] }}</h6>
+                                            <p class="card-text">{{ product[4][:100] if product[4] else '' }}...</p>
+                                            <hr>
+                                            <p><i class="fas fa-map-marker-alt"></i> <strong>Location:</strong> {{ product[5] }}</p>
+                                            <p><i class="fas fa-store"></i> <strong>Seller:</strong> {{ product[12] }}</p>
+                                            <p><i class="fab fa-whatsapp"></i> <a href="https://wa.me/{{ product[6] }}" target="_blank">Contact on WhatsApp</a></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info text-center">
+                                <h5>No products found</h5>
+                                <p>Try different search terms or <a href="/search">clear all filters</a></p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white mt-5 py-4">
+        <div class="container text-center">
+            <p>&copy; 2024 My Market Place. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

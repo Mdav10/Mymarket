@@ -11,15 +11,40 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="/"><i class="fas fa-store"></i> My Market Place</a>
-            <div class="navbar-nav ms-auto">
-                <span class="nav-link text-white">Welcome, {{ session.user_name }}</span>
-                <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/buyer/dashboard">All Products</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/search"><i class="fas fa-search"></i> Search</a>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link text-white">Welcome, {{ session.user_name }}</span>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
 
     <div class="container mt-4">
-        <h2 class="mb-4">All Products from Verified Sellers</h2>
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2>All Products from Verified Sellers</h2>
+            </div>
+            <div class="col-md-4">
+                <form action="/search" method="GET" class="d-flex">
+                    <input type="text" name="q" class="form-control me-2" placeholder="Search products...">
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i></button>
+                </form>
+            </div>
+        </div>
         
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -48,8 +73,8 @@
                             <p class="card-text">{{ product[4][:150] if product[4] else '' }}{% if product[4] and product[4]|length > 150 %}...{% endif %}</p>
                             <hr>
                             <p><i class="fas fa-map-marker-alt"></i> <strong>Location:</strong> {{ product[5] }}</p>
+                            <p><i class="fas fa-store"></i> <strong>Seller:</strong> {{ product[12] }}</p>
                             <p><i class="fab fa-whatsapp"></i> <strong>Contact:</strong> <a href="https://wa.me/{{ product[6] }}" target="_blank">{{ product[6] }}</a></p>
-                            <p><small class="text-muted">Seller: {{ product[12] }}</small></p>
                         </div>
                     </div>
                 </div>
