@@ -37,7 +37,7 @@
                         <div class="card-body">
                             <h5 class="card-title">{{ product[2] }}</h5>
                             <h6 class="text-primary">${{ product[3] }}</h6>
-                            <p class="card-text">{{ product[4][:150] }}{% if product[4]|length > 150 %}...{% endif %}</p>
+                            <p class="card-text">{{ product[4][:150] if product[4] else '' }}{% if product[4] and product[4]|length > 150 %}...{% endif %}</p>
                             <hr>
                             <p><i class="fas fa-map-marker-alt"></i> <strong>Location:</strong> {{ product[5] }}</p>
                             <p><i class="fab fa-whatsapp"></i> <strong>Contact:</strong> <a href="https://wa.me/{{ product[6] }}" target="_blank">{{ product[6] }}</a></p>

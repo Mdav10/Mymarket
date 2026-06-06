@@ -141,7 +141,15 @@
                                 <td>{{ seller[1] }}</td>
                                 <td>{{ seller[3] }}</td>
                                 <td>{{ seller[4] }}</td>
-                                <td>{% if seller[9] %}Paid{% elif seller[8] >= now %}Trial{% else %}Expired{% endif %}</td>
+                                <td>
+                                    {% if seller[9] %}
+                                        Paid
+                                    {% elif seller[8] >= now %}
+                                        Trial
+                                    {% else %}
+                                        Expired
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <a href="/admin/toggle_seller/{{ seller[0] }}" class="btn btn-sm btn-warning">
                                         {% if seller[10] %}Deactivate{% else %}Activate{% endif %}
