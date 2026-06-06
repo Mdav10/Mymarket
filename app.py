@@ -9,17 +9,15 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here-change-this-2024'
 app.config['UPLOAD_FOLDER'] = 'static/uploads/products'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
-# Create upload directories
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs('static/uploads/proofs', exist_ok=True)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# PostgreSQL Database connection
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://mymarket_8q19_user:Hs2KnIFTlDPiz1vWfrPnLQ2dZUwhfN7B@dpg-d8i4gfmq1p3s73ebd8a0-a/mymarket_8q19')
 
 def get_db():
@@ -135,21 +133,18 @@ def owner_required(f):
 
 @app.route('/')
 def index():
-    """Homepage - shows latest products from paid sellers"""
     conn = get_db()
     c = conn.cursor()
     
     try:
-        # Get latest 12 products from paid sellers only
         c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
             FROM products p 
             JOIN sellers s ON p.seller_id = s.id 
             WHERE s.is_active = TRUE AND s.is_paid = TRUE
             ORDER BY p.created_at DESC LIMIT 12''')
         products = c.fetchall()
-    except Exception as e:
+    except:
         products = []
-        print(f"Error: {e}")
     
     conn.close()
     return render_template('index.html', products=products)
@@ -196,7 +191,6 @@ def search():
     c.execute(sql, params)
     products = c.fetchall()
     
-    # Get categories for filter
     c.execute("SELECT DISTINCT category FROM products WHERE category IS NOT NULL")
     categories = [row[0] for row in c.fetchall()]
     
@@ -250,7 +244,7 @@ def register_seller():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
             (business_name, owner_name, email, phone, whatsapp, password, trial_start, trial_end, False))
             conn.commit()
-            flash('Registration successful! You have 10 days free trial.', 'success')
+            flash('Registration successful! You have 10 days free trial. You can add products during trial. After trial, you must subscribe to continue.', 'success')
             return redirect(url_for('login'))
         except psycopg2.IntegrityError:
             flash('Email already registered', 'danger')
@@ -301,7 +295,7 @@ def login():
             if user and user[3] != 'owner@mymarketplace.com':
                 session['user_id'] = user[0]
                 session['user_type'] = 'seller'
-                session['user_name'] = user[1]  # business_name
+                session['user_name'] = user[1]
                 flash(f'Welcome {user[1]}!', 'success')
                 conn.close()
                 return redirect(url_for('seller_dashboard'))
@@ -314,7 +308,7 @@ def login():
             if user:
                 session['user_id'] = user[0]
                 session['user_type'] = 'buyer'
-                session['user_name'] = user[1]  # full_name
+                session['user_name'] = user[1]
                 flash(f'Welcome {user[1]}!', 'success')
                 conn.close()
                 return redirect(url_for('buyer_dashboard'))
@@ -338,9 +332,18 @@ def seller_dashboard():
     products = c.fetchall()
     
     today = datetime.now().date()
-    trial_end = seller[7]
+    trial_start = seller[7]
+    trial_end = seller[8]
+    is_paid = seller[9]
+    
+    # Calculate trial days left
     trial_days_left = (trial_end - today).days if trial_end >= today else 0
-    is_subscribed = seller[9]
+    
+    # Check if seller is on trial (trial not ended AND not paid)
+    is_on_trial = trial_days_left > 0 and not is_paid
+    
+    # Check if subscription is active (paid)
+    is_subscribed = is_paid
     
     c.execute("SELECT * FROM subscription_requests WHERE seller_id = %s AND status = 'pending'", (session['user_id'],))
     pending_request = c.fetchone()
@@ -351,6 +354,7 @@ def seller_dashboard():
                          seller=seller, 
                          products=products, 
                          trial_days_left=trial_days_left,
+                         is_on_trial=is_on_trial,
                          is_subscribed=is_subscribed,
                          pending_request=pending_request)
 
