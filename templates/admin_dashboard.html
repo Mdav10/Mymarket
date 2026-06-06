@@ -27,7 +27,6 @@
             {% endif %}
         {% endwith %}
 
-        <!-- Stats Cards -->
         <div class="row mb-4">
             <div class="col-md-3">
                 <div class="card bg-primary text-white">
@@ -63,7 +62,6 @@
             </div>
         </div>
 
-        <!-- Subscription Requests -->
         <div class="card mb-4">
             <div class="card-header bg-warning">
                 <h5>Pending Subscription Requests</h5>
@@ -98,7 +96,6 @@
             </div>
         </div>
 
-        <!-- Bank Settings -->
         <div class="card mb-4">
             <div class="card-header bg-info text-white">
                 <h5>Bank Account Settings</h5>
@@ -124,7 +121,6 @@
             </div>
         </div>
 
-        <!-- Sellers List -->
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
                 <h5>All Sellers</h5>
@@ -141,15 +137,7 @@
                                 <td>{{ seller[1] }}</td>
                                 <td>{{ seller[3] }}</td>
                                 <td>{{ seller[4] }}</td>
-                                <td>
-                                    {% if seller[9] %}
-                                        Paid
-                                    {% elif seller[8] >= now %}
-                                        Trial
-                                    {% else %}
-                                        Expired
-                                    {% endif %}
-                                </td>
+                                <td>{% if seller[9] %}Paid{% else %}Trial/Expired{% endif %}</td>
                                 <td>
                                     <a href="/admin/toggle_seller/{{ seller[0] }}" class="btn btn-sm btn-warning">
                                         {% if seller[10] %}Deactivate{% else %}Activate{% endif %}
@@ -165,7 +153,6 @@
             </div>
         </div>
 
-        <!-- Products List -->
         <div class="card">
             <div class="card-header bg-success text-white">
                 <h5>All Products</h5>
@@ -180,7 +167,7 @@
                             {% for product in products %}
                             <tr>
                                 <td>{{ product[2] }}</td>
-                                <td>{{ product[12] }}</td>
+                                <td>{{ product[12] if product|length > 12 else 'Unknown' }}</td>
                                 <td>${{ product[3] }}</td>
                                 <td>{{ product[5] }}</td>
                                 <td><a href="/admin/delete_product/{{ product[0] }}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this product?')">Delete</a></td>

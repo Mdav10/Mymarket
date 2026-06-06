@@ -34,6 +34,14 @@
                 {% for product in products %}
                 <div class="col-md-4 mb-4">
                     <div class="card h-100 shadow">
+                        {% if product[7] %}
+                            <img src="{{ product[7] }}" class="card-img-top" alt="{{ product[2] }}" style="height: 200px; object-fit: cover;">
+                        {% else %}
+                            <div class="bg-secondary text-white text-center py-5">
+                                <i class="fas fa-image fa-3x"></i>
+                                <p>No Image</p>
+                            </div>
+                        {% endif %}
                         <div class="card-body">
                             <h5 class="card-title">{{ product[2] }}</h5>
                             <h6 class="text-primary">${{ product[3] }}</h6>
@@ -50,7 +58,7 @@
                 <div class="col-12">
                     <div class="alert alert-info text-center">
                         <h5>No products available right now</h5>
-                        <p>Check back later or <a href="/register/seller">encourage sellers to join</a></p>
+                        <p>Only paid sellers' products appear here. Check back later!</p>
                     </div>
                 </div>
             {% endif %}

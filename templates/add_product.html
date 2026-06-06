@@ -31,7 +31,7 @@
                             {% endif %}
                         {% endwith %}
                         
-                        <form method="POST">
+                        <form method="POST" enctype="multipart/form-data">
                             <div class="mb-3">
                                 <label>Product Name</label>
                                 <input type="text" name="product_name" class="form-control" required>
@@ -39,6 +39,11 @@
                             <div class="mb-3">
                                 <label>Price (USD)</label>
                                 <input type="number" step="0.01" name="price" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Product Image</label>
+                                <input type="file" name="product_image" class="form-control" accept="image/*">
+                                <small class="text-muted">Upload a product image (optional - PNG, JPG, JPEG, GIF, WEBP)</small>
                             </div>
                             <div class="mb-3">
                                 <label>Description</label>
@@ -63,6 +68,7 @@
                                     <option>Vehicles</option>
                                     <option>Real Estate</option>
                                     <option>Services</option>
+                                    <option>Food</option>
                                     <option>Other</option>
                                 </select>
                             </div>

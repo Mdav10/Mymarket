@@ -4,9 +4,20 @@ import os
 from functools import wraps
 import hashlib
 import psycopg2
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here-change-this-2024'
+app.config['UPLOAD_FOLDER'] = 'static/uploads/products'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+# Create upload directories
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs('static/uploads/proofs', exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # PostgreSQL Database connection
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://mymarket_8q19_user:Hs2KnIFTlDPiz1vWfrPnLQ2dZUwhfN7B@dpg-d8i4gfmq1p3s73ebd8a0-a/mymarket_8q19')
@@ -308,8 +319,7 @@ def subscribe():
             flash('Please select a file', 'danger')
             return redirect(url_for('subscribe'))
         
-        os.makedirs('static/uploads/proofs', exist_ok=True)
-        filename = f"proof_{session['user_id']}_{datetime.now().timestamp()}.jpg"
+        filename = secure_filename(f"proof_{session['user_id']}_{int(datetime.now().timestamp())}.jpg")
         filepath = os.path.join('static/uploads/proofs', filename)
         file.save(filepath)
         
@@ -344,11 +354,21 @@ def add_product():
         whatsapp = request.form['whatsapp']
         category = request.form.get('category', 'General')
         
+        # Handle image upload
+        image_url = None
+        if 'product_image' in request.files:
+            file = request.files['product_image']
+            if file and file.filename != '' and allowed_file(file.filename):
+                filename = secure_filename(f"product_{session['user_id']}_{int(datetime.now().timestamp())}.{file.filename.rsplit('.', 1)[1].lower()}")
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                image_url = f"/static/uploads/products/{filename}"
+        
         conn = get_db()
         c = conn.cursor()
-        c.execute('''INSERT INTO products (seller_id, product_name, price, description, location, whatsapp, category)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)''',
-        (session['user_id'], product_name, price, description, location, whatsapp, category))
+        c.execute('''INSERT INTO products (seller_id, product_name, price, description, location, whatsapp, category, image_url)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
+        (session['user_id'], product_name, price, description, location, whatsapp, category, image_url))
         conn.commit()
         conn.close()
         
@@ -446,7 +466,7 @@ def approve_subscription(request_id):
         c.execute("UPDATE sellers SET is_paid = TRUE, subscription_end = %s WHERE id = %s", (subscription_end, seller_id))
         c.execute("UPDATE subscription_requests SET status = 'approved' WHERE id = %s", (request_id,))
         conn.commit()
-        flash('Subscription approved!', 'success')
+        flash('Subscription approved! Products are now visible to buyers.', 'success')
     
     conn.close()
     return redirect(url_for('admin_dashboard'))

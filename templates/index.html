@@ -39,7 +39,6 @@
     </nav>
 
     <div class="container mt-4">
-        <!-- Hero Section -->
         <div class="bg-primary text-white rounded p-5 mb-4 text-center">
             <h1>Welcome to My Market Place</h1>
             <p class="lead">The best place to buy and sell products locally</p>
@@ -47,16 +46,23 @@
             <a href="/login" class="btn btn-outline-light btn-lg">Start Buying</a>
         </div>
 
-        <!-- Products Section -->
         <h2 class="mb-4">Latest Products</h2>
         <div class="row">
             {% for product in products %}
             <div class="col-md-4 mb-4">
                 <div class="card h-100">
+                    {% if product[7] %}
+                        <img src="{{ product[7] }}" class="card-img-top" alt="{{ product[2] }}" style="height: 200px; object-fit: cover;">
+                    {% else %}
+                        <div class="bg-secondary text-white text-center py-5">
+                            <i class="fas fa-image fa-3x"></i>
+                            <p>No Image</p>
+                        </div>
+                    {% endif %}
                     <div class="card-body">
                         <h5 class="card-title">{{ product[2] }}</h5>
                         <h6 class="text-primary">${{ product[3] }}</h6>
-                        <p class="card-text">{{ product[4][:100] }}...</p>
+                        <p class="card-text">{{ product[4][:100] if product[4] else '' }}...</p>
                         <p><i class="fas fa-map-marker-alt"></i> {{ product[5] }}</p>
                         <p><i class="fab fa-whatsapp"></i> <a href="https://wa.me/{{ product[6] }}" target="_blank">Contact on WhatsApp</a></p>
                         <small class="text-muted">Seller: {{ product[12] }}</small>
@@ -65,7 +71,7 @@
             </div>
             {% else %}
             <div class="col-12">
-                <div class="alert alert-info">No products yet. Be the first to <a href="/register/seller">register as seller</a>!</div>
+                <div class="alert alert-info">No products yet. Only paid sellers' products appear here. <a href="/register/seller">Register as seller</a> to start selling!</div>
             </div>
             {% endfor %}
         </div>
@@ -73,7 +79,7 @@
 
     <footer class="bg-dark text-white mt-5 py-4">
         <div class="container text-center">
-            <p>&copy; 2024 My Market Place. All rights reserved.</p>
+            <p>&copy; 2026 My Market Place. All rights reserved.</p>
         </div>
     </footer>
 
