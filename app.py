@@ -10,12 +10,13 @@ app = Flask(__name__)
 app.secret_key = 'your-secret-key-here-change-this-2024'
 
 # PostgreSQL Database connection
-DATABASE_URL = 'postgresql://mymarket_8q19_user:Hs2KnIFTlDPiz1vWfrPnLQ2dZUwhfN7B@dpg-d8i4gfmq1p3s73ebd8a0-a/mymarket_8q19'
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://mymarket_8q19_user:Hs2KnIFTlDPiz1vWfrPnLQ2dZUwhfN7B@dpg-d8i4gfmq1p3s73ebd8a0-a/mymarket_8q19')
 
 def get_db():
     return psycopg2.connect(DATABASE_URL)
 
 def init_db():
+    """Initialize database tables"""
     conn = get_db()
     c = conn.cursor()
     
@@ -101,6 +102,7 @@ def init_db():
         conn.commit()
     
     conn.close()
+    print("Database initialized successfully!")
 
 def login_required(f):
     @wraps(f)
@@ -134,13 +136,16 @@ def index():
     conn = get_db()
     c = conn.cursor()
     
-    today = datetime.now().date()
-    c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
-        FROM products p 
-        JOIN sellers s ON p.seller_id = s.id 
-        WHERE s.is_active = TRUE AND s.is_paid = TRUE
-        ORDER BY p.created_at DESC LIMIT 30''')
-    products = c.fetchall()
+    try:
+        c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
+            FROM products p 
+            JOIN sellers s ON p.seller_id = s.id 
+            WHERE s.is_active = TRUE AND s.is_paid = TRUE
+            ORDER BY p.created_at DESC LIMIT 30''')
+        products = c.fetchall()
+    except Exception as e:
+        products = []
+        print(f"Error fetching products: {e}")
     
     conn.close()
     return render_template('index.html', products=products)
@@ -505,6 +510,9 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('index'))
 
-if __name__ == '__main__':
+# Initialize database when app starts
+with app.app_context():
     init_db()
+
+if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
