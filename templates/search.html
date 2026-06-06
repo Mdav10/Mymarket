@@ -17,7 +17,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/buyer/dashboard">All Products</a>
+                        <a class="nav-link" href="/">Home</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/search">Search</a>
@@ -109,9 +109,9 @@
                                 <div class="col-md-6 mb-4">
                                     <div class="card h-100">
                                         {% if product[7] %}
-                                            <img src="{{ product[7] }}" class="card-img-top" alt="{{ product[2] }}" style="height: 200px; object-fit: cover;">
+                                            <img src="{{ product[7] }}" class="card-img-top" alt="{{ product[2] }}" style="height: 180px; object-fit: cover;">
                                         {% else %}
-                                            <div class="bg-secondary text-white text-center py-5">
+                                            <div class="bg-secondary text-white text-center py-4">
                                                 <i class="fas fa-image fa-3x"></i>
                                                 <p>No Image</p>
                                             </div>
@@ -119,11 +119,11 @@
                                         <div class="card-body">
                                             <h5 class="card-title">{{ product[2] }}</h5>
                                             <h6 class="text-primary">${{ product[3] }}</h6>
-                                            <p class="card-text">{{ product[4][:100] if product[4] else '' }}...</p>
+                                            <p class="card-text small">{{ product[4][:100] if product[4] else '' }}...</p>
                                             <hr>
-                                            <p><i class="fas fa-map-marker-alt"></i> <strong>Location:</strong> {{ product[5] }}</p>
-                                            <p><i class="fas fa-store"></i> <strong>Seller:</strong> {{ product[12] }}</p>
-                                            <p><i class="fab fa-whatsapp"></i> <a href="https://wa.me/{{ product[6] }}" target="_blank">Contact on WhatsApp</a></p>
+                                            <p class="small mb-1"><i class="fas fa-map-marker-alt"></i> {{ product[5] }}</p>
+                                            <p class="small mb-1"><i class="fas fa-store"></i> <strong>Seller:</strong> {{ product[12] }}</p>
+                                            <p class="small"><i class="fab fa-whatsapp"></i> <a href="https://wa.me/{{ product[6] }}" target="_blank">Contact on WhatsApp</a></p>
                                         </div>
                                     </div>
                                 </div>

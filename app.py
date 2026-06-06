@@ -135,7 +135,24 @@ def owner_required(f):
 
 @app.route('/')
 def index():
-    return redirect(url_for('buyer_dashboard'))
+    """Homepage - shows latest products from paid sellers"""
+    conn = get_db()
+    c = conn.cursor()
+    
+    try:
+        # Get latest 12 products from paid sellers only
+        c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
+            FROM products p 
+            JOIN sellers s ON p.seller_id = s.id 
+            WHERE s.is_active = TRUE AND s.is_paid = TRUE
+            ORDER BY p.created_at DESC LIMIT 12''')
+        products = c.fetchall()
+    except Exception as e:
+        products = []
+        print(f"Error: {e}")
+    
+    conn.close()
+    return render_template('index.html', products=products)
 
 @app.route('/search')
 def search():
@@ -284,7 +301,7 @@ def login():
             if user and user[3] != 'owner@mymarketplace.com':
                 session['user_id'] = user[0]
                 session['user_type'] = 'seller'
-                session['user_name'] = user[1]
+                session['user_name'] = user[1]  # business_name
                 flash(f'Welcome {user[1]}!', 'success')
                 conn.close()
                 return redirect(url_for('seller_dashboard'))
@@ -297,7 +314,7 @@ def login():
             if user:
                 session['user_id'] = user[0]
                 session['user_type'] = 'buyer'
-                session['user_name'] = user[1]
+                session['user_name'] = user[1]  # full_name
                 flash(f'Welcome {user[1]}!', 'success')
                 conn.close()
                 return redirect(url_for('buyer_dashboard'))
@@ -317,7 +334,7 @@ def seller_dashboard():
     c.execute("SELECT * FROM sellers WHERE id = %s", (session['user_id'],))
     seller = c.fetchone()
     
-    c.execute("SELECT p.*, s.business_name FROM products p JOIN sellers s ON p.seller_id = s.id WHERE p.seller_id = %s ORDER BY p.created_at DESC", (session['user_id'],))
+    c.execute("SELECT p.* FROM products p WHERE p.seller_id = %s ORDER BY p.created_at DESC", (session['user_id'],))
     products = c.fetchall()
     
     today = datetime.now().date()
@@ -427,10 +444,14 @@ def seller_delete_product(product_id):
 
 @app.route('/buyer/dashboard')
 def buyer_dashboard():
+    if session.get('user_type') != 'buyer':
+        flash('Please login as buyer first', 'warning')
+        return redirect(url_for('login'))
+    
     conn = get_db()
     c = conn.cursor()
     
-    c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp 
+    c.execute('''SELECT p.*, s.business_name 
         FROM products p 
         JOIN sellers s ON p.seller_id = s.id 
         WHERE s.is_active = TRUE AND s.is_paid = TRUE
@@ -559,7 +580,7 @@ def admin_delete_product(product_id):
 def logout():
     session.clear()
     flash('Logged out successfully', 'success')
-    return redirect(url_for('buyer_dashboard'))
+    return redirect(url_for('index'))
 
 with app.app_context():
     init_db()
