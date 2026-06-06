@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seller Dashboard - My Market Place</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-store"></i> My Market Place</a>
+            <div class="navbar-nav ms-auto">
+                <span class="nav-link text-white">Welcome, {{ session.user_name }}</span>
+                <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="list-group">
+                    <a href="/seller/dashboard" class="list-group-item list-group-item-action active">Dashboard</a>
+                    <a href="/seller/add_product" class="list-group-item list-group-item-action">Add Product</a>
+                    <a href="/seller/subscribe" class="list-group-item list-group-item-action">Subscribe/Pay</a>
+                </div>
+            </div>
+            <div class="col-md-9">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Status Cards -->
+                <div class="row mb-4">
+                    {% if is_subscribed %}
+                        <div class="col-md-6">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <h5>Subscription Active</h5>
+                                    <p>Valid until: {{ subscription_end }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    {% elif trial_days_left > 0 %}
+                        <div class="col-md-6">
+                            <div class="card bg-warning text-dark">
+                                <div class="card-body">
+                                    <h5>Trial Period</h5>
+                                    <p>{{ trial_days_left }} days remaining. <a href="/seller/subscribe">Subscribe now</a> to continue after trial.</p>
+                                </div>
+                            </div>
+                        </div>
+                    {% elif pending_request %}
+                        <div class="col-md-6">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <h5>Subscription Pending</h5>
+                                    <p>Admin is reviewing your payment. You'll be notified once approved.</p>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="col-md-6">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body">
+                                    <h5>Subscription Required</h5>
+                                    <p>Your trial has ended. <a href="/seller/subscribe" class="text-white">Subscribe now</a> to continue selling.</p>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="col-md-6">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <h5>My Products</h5>
+                                <h2>{{ products|length }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Products List -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5>My Products</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if products %}
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr><th>Product</th><th>Price</th><th>Location</th><th>WhatsApp</th><th>Action</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for product in products %}
+                                        <tr>
+                                            <td>{{ product[2] }}</td>
+                                            <td>${{ product[3] }}</td>
+                                            <td>{{ product[5] }}</td>
+                                            <td>{{ product[6] }}</td>
+                                            <td><a href="/seller/delete_product/{{ product[0] }}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this product?')">Delete</a></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p>No products yet. <a href="/seller/add_product">Add your first product</a></p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

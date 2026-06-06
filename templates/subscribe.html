@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subscribe - My Market Place</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-store"></i> My Market Place</a>
+            <a class="nav-link text-white" href="/seller/dashboard">Back to Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h4>Choose Subscription Plan</h4>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <form method="POST" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label>Select Plan</label>
+                                <select name="plan" id="plan" class="form-select" required onchange="updatePrice()">
+                                    {% for plan in plans %}
+                                    <option value="{{ plan.name }}" data-months="{{ plan.months }}" data-price="{{ plan.price }}">
+                                        {{ plan.name }} - ${{ plan.price }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <input type="hidden" name="months" id="months">
+                            <input type="hidden" name="amount" id="amount">
+                            
+                            <div class="mb-3">
+                                <label>Upload Payment Proof (Screenshot)</label>
+                                <input type="file" name="proof_image" class="form-control" accept="image/*" required>
+                                <small class="text-muted">Upload screenshot of your bank transfer</small>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">Submit Payment Request</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-header bg-success text-white">
+                        <h4>Bank Payment Details</h4>
+                    </div>
+                    <div class="card-body">
+                        {% if bank %}
+                        <table class="table">
+                            <tr><th>Bank Name:</th><td>{{ bank[1] }}</td></tr>
+                            <tr><th>Account Name:</th><td>{{ bank[2] }}</td></tr>
+                            <tr><th>Account Number:</th><td>{{ bank[3] }}</td></tr>
+                        </table>
+                        <div class="alert alert-info">
+                            <strong>Instructions:</strong>
+                            <ol>
+                                <li>Transfer the exact amount for your chosen plan</li>
+                                <li>Take a screenshot of the transfer confirmation</li>
+                                <li>Upload the screenshot above</li>
+                                <li>Admin will verify and activate your subscription within 24 hours</li>
+                            </ol>
+                        </div>
+                        {% else %}
+                        <p class="text-muted">Bank details will be updated by admin soon.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updatePrice() {
+            let select = document.getElementById('plan');
+            let selected = select.options[select.selectedIndex];
+            let months = selected.getAttribute('data-months');
+            let price = selected.getAttribute('data-price');
+            document.getElementById('months').value = months;
+            document.getElementById('amount').value = price;
+        }
+        updatePrice();
+    </script>
+</body>
+</html>

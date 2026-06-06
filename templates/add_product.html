@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Product - My Market Place</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/"><i class="fas fa-store"></i> My Market Place</a>
+            <a class="nav-link text-white" href="/seller/dashboard">Back to Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h4><i class="fas fa-plus-circle"></i> Add New Product</h4>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <form method="POST">
+                            <div class="mb-3">
+                                <label>Product Name</label>
+                                <input type="text" name="product_name" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Price (USD)</label>
+                                <input type="number" step="0.01" name="price" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Description</label>
+                                <textarea name="description" rows="4" class="form-control" required></textarea>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label>Location (City/Area)</label>
+                                    <input type="text" name="location" class="form-control" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label>WhatsApp Number (with country code)</label>
+                                    <input type="tel" name="whatsapp" class="form-control" placeholder="e.g., 257XXXXXXXX" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label>Category</label>
+                                <select name="category" class="form-select">
+                                    <option>Electronics</option>
+                                    <option>Clothing</option>
+                                    <option>Furniture</option>
+                                    <option>Vehicles</option>
+                                    <option>Real Estate</option>
+                                    <option>Services</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Add Product</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
