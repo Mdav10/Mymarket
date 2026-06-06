@@ -4,7 +4,6 @@ import os
 from functools import wraps
 import hashlib
 import psycopg2
-from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here-change-this-2024'
@@ -16,11 +15,9 @@ def get_db():
     return psycopg2.connect(DATABASE_URL)
 
 def init_db():
-    """Initialize database tables"""
     conn = get_db()
     c = conn.cursor()
     
-    # Sellers table
     c.execute('''CREATE TABLE IF NOT EXISTS sellers (
         id SERIAL PRIMARY KEY,
         business_name TEXT NOT NULL,
@@ -37,7 +34,6 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Products table
     c.execute('''CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
         seller_id INTEGER NOT NULL REFERENCES sellers(id),
@@ -51,7 +47,6 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Buyers table
     c.execute('''CREATE TABLE IF NOT EXISTS buyers (
         id SERIAL PRIMARY KEY,
         full_name TEXT NOT NULL,
@@ -61,7 +56,6 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Subscription requests table
     c.execute('''CREATE TABLE IF NOT EXISTS subscription_requests (
         id SERIAL PRIMARY KEY,
         seller_id INTEGER NOT NULL REFERENCES sellers(id),
@@ -73,7 +67,6 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Bank account settings
     c.execute('''CREATE TABLE IF NOT EXISTS bank_settings (
         id SERIAL PRIMARY KEY,
         bank_name TEXT,
@@ -84,14 +77,12 @@ def init_db():
     
     conn.commit()
     
-    # Insert default bank account if not exists
     c.execute("SELECT * FROM bank_settings")
     if not c.fetchone():
         c.execute("INSERT INTO bank_settings (bank_name, account_name, account_number) VALUES (%s, %s, %s)",
                   ('Bank Name Here', 'Account Holder Name', 'Account Number Here'))
         conn.commit()
     
-    # Insert owner account if not exists
     c.execute("SELECT * FROM sellers WHERE email = 'owner@mymarketplace.com'")
     if not c.fetchone():
         hashed_password = hashlib.sha256('0880Owner+_+'.encode()).hexdigest()
@@ -102,7 +93,7 @@ def init_db():
         conn.commit()
     
     conn.close()
-    print("Database initialized successfully!")
+    print("Database initialized!")
 
 def login_required(f):
     @wraps(f)
@@ -118,7 +109,7 @@ def seller_required(f):
     def decorated_function(*args, **kwargs):
         if session.get('user_type') != 'seller':
             flash('Seller access required', 'danger')
-            return redirect(url_for('index'))
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -127,7 +118,7 @@ def owner_required(f):
     def decorated_function(*args, **kwargs):
         if session.get('user_type') != 'owner':
             flash('Owner access only', 'danger')
-            return redirect(url_for('index'))
+            return redirect(url_for('owner_login'))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -143,12 +134,34 @@ def index():
             WHERE s.is_active = TRUE AND s.is_paid = TRUE
             ORDER BY p.created_at DESC LIMIT 30''')
         products = c.fetchall()
-    except Exception as e:
+    except:
         products = []
-        print(f"Error fetching products: {e}")
     
     conn.close()
     return render_template('index.html', products=products)
+
+@app.route('/owner/login', methods=['GET', 'POST'])
+def owner_login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = hashlib.sha256(request.form['password'].encode()).hexdigest()
+        
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT * FROM sellers WHERE email = 'owner@mymarketplace.com'")
+        user = c.fetchone()
+        conn.close()
+        
+        if user and password == hashlib.sha256('0880Owner+_+'.encode()).hexdigest():
+            session['user_id'] = user[0]
+            session['user_type'] = 'owner'
+            session['user_name'] = 'Owner'
+            flash('Welcome Owner!', 'success')
+            return redirect(url_for('admin_dashboard'))
+        else:
+            flash('Invalid owner credentials', 'danger')
+    
+    return render_template('owner_login.html')
 
 @app.route('/register/seller', methods=['GET', 'POST'])
 def register_seller():
@@ -171,7 +184,7 @@ def register_seller():
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
             (business_name, owner_name, email, phone, whatsapp, password, trial_start, trial_end, False))
             conn.commit()
-            flash('Registration successful! You have 10 days free trial. You can add products during trial. After trial, you must subscribe to continue.', 'success')
+            flash('Registration successful! You have 10 days free trial.', 'success')
             return redirect(url_for('login'))
         except psycopg2.IntegrityError:
             flash('Email already registered', 'danger')
@@ -216,23 +229,10 @@ def login():
         conn = get_db()
         c = conn.cursor()
         
-        if user_type == 'owner':
-            c.execute("SELECT * FROM sellers WHERE email = 'owner@mymarketplace.com'")
-            user = c.fetchone()
-            if user and password == hashlib.sha256('0880Owner+_+'.encode()).hexdigest():
-                session['user_id'] = user[0]
-                session['user_type'] = 'owner'
-                session['user_name'] = 'Owner'
-                flash('Welcome Owner!', 'success')
-                conn.close()
-                return redirect(url_for('admin_dashboard'))
-            else:
-                flash('Invalid owner credentials', 'danger')
-        
-        elif user_type == 'seller':
+        if user_type == 'seller':
             c.execute("SELECT * FROM sellers WHERE email = %s AND password = %s", (email, password))
             user = c.fetchone()
-            if user:
+            if user and user[3] != 'owner@mymarketplace.com':
                 session['user_id'] = user[0]
                 session['user_type'] = 'seller'
                 session['user_name'] = user[1]
@@ -274,9 +274,7 @@ def seller_dashboard():
     today = datetime.now().date()
     trial_end = seller[7]
     trial_days_left = (trial_end - today).days if trial_end >= today else 0
-    
     is_subscribed = seller[9]
-    subscription_end = seller[8]
     
     c.execute("SELECT * FROM subscription_requests WHERE seller_id = %s AND status = 'pending'", (session['user_id'],))
     pending_request = c.fetchone()
@@ -288,7 +286,6 @@ def seller_dashboard():
                          products=products, 
                          trial_days_left=trial_days_left,
                          is_subscribed=is_subscribed,
-                         subscription_end=subscription_end,
                          pending_request=pending_request)
 
 @app.route('/seller/subscribe', methods=['GET', 'POST'])
@@ -320,7 +317,7 @@ def subscribe():
         VALUES (%s, %s, %s, %s, %s, 'pending')''', (session['user_id'], plan, amount, months, filename))
         conn.commit()
         
-        flash('Subscription request sent! Admin will verify and activate your subscription.', 'success')
+        flash('Subscription request sent! Admin will verify.', 'success')
         return redirect(url_for('seller_dashboard'))
     
     c.execute("SELECT * FROM bank_settings LIMIT 1")
@@ -449,7 +446,7 @@ def approve_subscription(request_id):
         c.execute("UPDATE sellers SET is_paid = TRUE, subscription_end = %s WHERE id = %s", (subscription_end, seller_id))
         c.execute("UPDATE subscription_requests SET status = 'approved' WHERE id = %s", (request_id,))
         conn.commit()
-        flash('Subscription approved! Seller can now list products.', 'success')
+        flash('Subscription approved!', 'success')
     
     conn.close()
     return redirect(url_for('admin_dashboard'))
@@ -510,7 +507,6 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('index'))
 
-# Initialize database when app starts
 with app.app_context():
     init_db()
 

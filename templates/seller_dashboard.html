@@ -36,60 +36,52 @@
                     {% endif %}
                 {% endwith %}
 
-                <!-- Status Cards -->
                 <div class="row mb-4">
                     {% if is_subscribed %}
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <div class="card bg-success text-white">
                                 <div class="card-body">
-                                    <h5>Subscription Active</h5>
-                                    <p>Valid until: {{ subscription_end }}</p>
+                                    <h5>✅ Subscription Active</h5>
+                                    <p>Your products are visible to buyers.</p>
                                 </div>
                             </div>
                         </div>
                     {% elif trial_days_left > 0 %}
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <div class="card bg-warning text-dark">
                                 <div class="card-body">
-                                    <h5>Trial Period</h5>
-                                    <p>{{ trial_days_left }} days remaining. <a href="/seller/subscribe">Subscribe now</a> to continue after trial.</p>
+                                    <h5>🎉 Free Trial Period</h5>
+                                    <p>You have <strong>{{ trial_days_left }} days</strong> remaining in your free trial.</p>
+                                    <p>After trial ends, you must subscribe to keep your products visible.</p>
+                                    <a href="/seller/subscribe" class="btn btn-dark">Subscribe Now</a>
                                 </div>
                             </div>
                         </div>
                     {% elif pending_request %}
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <div class="card bg-info text-white">
                                 <div class="card-body">
-                                    <h5>Subscription Pending</h5>
+                                    <h5>⏳ Subscription Pending</h5>
                                     <p>Admin is reviewing your payment. You'll be notified once approved.</p>
                                 </div>
                             </div>
                         </div>
                     {% else %}
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <div class="card bg-danger text-white">
                                 <div class="card-body">
-                                    <h5>Subscription Required</h5>
-                                    <p>Your trial has ended. <a href="/seller/subscribe" class="text-white">Subscribe now</a> to continue selling.</p>
+                                    <h5>⚠️ Subscription Required</h5>
+                                    <p>Your free trial has ended. Subscribe now to continue selling.</p>
+                                    <a href="/seller/subscribe" class="btn btn-light">Subscribe Now</a>
                                 </div>
                             </div>
                         </div>
                     {% endif %}
-                    
-                    <div class="col-md-6">
-                        <div class="card bg-primary text-white">
-                            <div class="card-body">
-                                <h5>My Products</h5>
-                                <h2>{{ products|length }}</h2>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
-                <!-- Products List -->
                 <div class="card">
                     <div class="card-header">
-                        <h5>My Products</h5>
+                        <h5>My Products ({{ products|length }})</h5>
                     </div>
                     <div class="card-body">
                         {% if products %}
