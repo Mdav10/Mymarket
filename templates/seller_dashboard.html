@@ -13,6 +13,7 @@
             <a class="navbar-brand" href="/"><i class="fas fa-store"></i> My Market Place</a>
             <div class="navbar-nav ms-auto">
                 <span class="nav-link text-white">Welcome, {{ session.user_name }}</span>
+                <a class="nav-link" href="/seller/edit_account"><i class="fas fa-user-edit"></i> Edit Profile</a>
                 <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
             </div>
         </div>
@@ -91,7 +92,7 @@
                             <div class="table-responsive">
                                 <table class="table table-bordered">
                                     <thead>
-                                        <tr><th>Image</th><th>Product</th><th>Price</th><th>Location</th><th>WhatsApp</th><th>Visibility</th><th>Action</th></tr>
+                                        <tr><th>Image</th><th>Product</th><th>Price</th><th>Location</th><th>Visibility</th><th>Actions</th></tr>
                                     </thead>
                                     <tbody>
                                         {% for product in products %}
@@ -103,18 +104,20 @@
                                                     <i class="fas fa-image fa-2x text-muted"></i>
                                                 {% endif %}
                                             </td>
-                                            <td>{{ product[2] }}</td>
+                                            <td>{{ product[2] }}<br><small class="text-muted">{{ product[4][:50] }}...</small></td>
                                             <td>${{ product[3] }}</td>
                                             <td>{{ product[5] }}</td>
-                                            <td>{{ product[6] }}</td>
                                             <td>
                                                 {% if is_subscribed or is_on_trial %}
-                                                    <span class="badge bg-success">Visible to Buyers</span>
+                                                    <span class="badge bg-success">Visible</span>
                                                 {% else %}
                                                     <span class="badge bg-danger">Hidden</span>
                                                 {% endif %}
                                             </td>
-                                            <td><a href="/seller/delete_product/{{ product[0] }}" class="btn btn-danger btn-sm" onclick="return confirm('Delete this product?')">Delete</a></td>
+                                            <td>
+                                                <a href="/seller/edit_product/{{ product[0] }}" class="btn btn-sm btn-warning">Edit</a>
+                                                <a href="/seller/delete_product/{{ product[0] }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete this product?')">Delete</a>
+                                            </td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
@@ -127,15 +130,6 @@
                             </div>
                         {% endif %}
                     </div>
-                </div>
-                
-                <div class="alert alert-info mt-3">
-                    <i class="fas fa-info-circle"></i> <strong>How visibility works:</strong>
-                    <ul class="mb-0 mt-2">
-                        <li>✅ <strong>During 10-day trial:</strong> Your products are VISIBLE to buyers</li>
-                        <li>⚠️ <strong>After trial ends:</strong> Your products become HIDDEN from buyers</li>
-                        <li>💰 <strong>Subscribe:</strong> Upload payment proof → Admin approves → Products become VISIBLE again</li>
-                    </ul>
                 </div>
             </div>
         </div>
