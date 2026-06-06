@@ -4,6 +4,7 @@ import os
 from functools import wraps
 import hashlib
 import psycopg2
+from psycopg2.extras import RealDictCursor
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -29,7 +30,7 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
     
-    # Sellers table with profile picture
+    # Sellers table
     c.execute('''CREATE TABLE IF NOT EXISTS sellers (
         id SERIAL PRIMARY KEY,
         business_name TEXT NOT NULL,
@@ -61,7 +62,7 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Buyers table with profile picture
+    # Buyers table
     c.execute('''CREATE TABLE IF NOT EXISTS buyers (
         id SERIAL PRIMARY KEY,
         full_name TEXT NOT NULL,
@@ -96,12 +97,14 @@ def init_db():
     
     conn.commit()
     
+    # Insert default bank account
     c.execute("SELECT * FROM bank_settings")
     if not c.fetchone():
         c.execute("INSERT INTO bank_settings (bank_name, account_name, account_number) VALUES (%s, %s, %s)",
                   ('Bank Name Here', 'Account Holder Name', 'Account Number Here'))
         conn.commit()
     
+    # Insert owner account
     c.execute("SELECT * FROM sellers WHERE email = 'owner@mymarketplace.com'")
     if not c.fetchone():
         hashed_password = hashlib.sha256('0880Owner+_+'.encode()).hexdigest()
@@ -148,7 +151,7 @@ def index():
     
     try:
         today = datetime.now().date()
-        c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp, s.profile_pic as seller_pic
+        c.execute('''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp
             FROM products p 
             JOIN sellers s ON p.seller_id = s.id 
             WHERE s.is_active = TRUE 
@@ -157,6 +160,7 @@ def index():
         products = c.fetchall()
     except Exception as e:
         products = []
+        print(f"Error: {e}")
     
     conn.close()
     return render_template('index.html', products=products)
@@ -173,7 +177,7 @@ def search():
     c = conn.cursor()
     
     today = datetime.now().date()
-    sql = '''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp, s.profile_pic as seller_pic
+    sql = '''SELECT p.*, s.business_name, s.whatsapp as seller_whatsapp
         FROM products p 
         JOIN sellers s ON p.seller_id = s.id 
         WHERE s.is_active = TRUE 
@@ -250,7 +254,6 @@ def register_seller():
         trial_start = datetime.now().date()
         trial_end = trial_start + timedelta(days=10)
         
-        # Handle profile picture
         profile_pic = None
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
@@ -286,7 +289,6 @@ def register_buyer():
         phone = request.form['phone']
         password = hashlib.sha256(request.form['password'].encode()).hexdigest()
         
-        # Handle profile picture
         profile_pic = None
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
@@ -327,7 +329,7 @@ def login():
             c.execute("SELECT * FROM sellers WHERE email = %s AND password = %s", (email, password))
             user = c.fetchone()
             if user and user[3] != 'owner@mymarketplace.com':
-                if not user[11]:  # is_active check
+                if not user[12]:
                     flash('Your account has been deactivated. Contact admin.', 'danger')
                     conn.close()
                     return redirect(url_for('login'))
@@ -344,7 +346,7 @@ def login():
             c.execute("SELECT * FROM buyers WHERE email = %s AND password = %s", (email, password))
             user = c.fetchone()
             if user:
-                if not user[6]:  # is_active check
+                if not user[6]:
                     flash('Your account has been deactivated. Contact admin.', 'danger')
                     conn.close()
                     return redirect(url_for('login'))
@@ -370,14 +372,14 @@ def seller_dashboard():
     c.execute("SELECT * FROM sellers WHERE id = %s", (session['user_id'],))
     seller = c.fetchone()
     
-    c.execute("SELECT p.* FROM products p WHERE p.seller_id = %s ORDER BY p.created_at DESC", (session['user_id'],))
+    c.execute("SELECT * FROM products WHERE seller_id = %s ORDER BY created_at DESC", (session['user_id'],))
     products = c.fetchall()
     
     today = datetime.now().date()
-    trial_end = seller[8]
+    trial_end = seller[9]
     trial_days_left = (trial_end - today).days if trial_end >= today else 0
-    is_on_trial = trial_days_left > 0 and not seller[10]
-    is_subscribed = seller[10]
+    is_on_trial = trial_days_left > 0 and not seller[11]
+    is_subscribed = seller[11]
     
     c.execute("SELECT * FROM subscription_requests WHERE seller_id = %s AND status = 'pending'", (session['user_id'],))
     pending_request = c.fetchone()
@@ -404,8 +406,6 @@ def seller_edit_account():
         phone = request.form['phone']
         whatsapp = request.form['whatsapp']
         
-        # Handle profile picture update
-        profile_pic = None
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
             if file and file.filename != '' and allowed_file(file.filename):
@@ -413,7 +413,6 @@ def seller_edit_account():
                 filepath = os.path.join(app.config['PROFILE_FOLDER'], filename)
                 file.save(filepath)
                 profile_pic = f"/static/uploads/profiles/{filename}"
-                
                 c.execute("UPDATE sellers SET profile_pic = %s WHERE id = %s", (profile_pic, session['user_id']))
         
         c.execute("UPDATE sellers SET business_name = %s, owner_name = %s, phone = %s, whatsapp = %s WHERE id = %s",
@@ -434,7 +433,6 @@ def seller_edit_product(product_id):
     conn = get_db()
     c = conn.cursor()
     
-    # Verify product belongs to seller
     c.execute("SELECT * FROM products WHERE id = %s AND seller_id = %s", (product_id, session['user_id']))
     product = c.fetchone()
     
@@ -450,7 +448,6 @@ def seller_edit_product(product_id):
         whatsapp = request.form['whatsapp']
         category = request.form.get('category', 'General')
         
-        # Handle image update
         image_url = product[7]
         if 'product_image' in request.files:
             file = request.files['product_image']
@@ -569,7 +566,7 @@ def buyer_dashboard():
     c = conn.cursor()
     
     today = datetime.now().date()
-    c.execute('''SELECT p.*, s.business_name, s.profile_pic as seller_pic
+    c.execute('''SELECT p.*, s.business_name
         FROM products p 
         JOIN sellers s ON p.seller_id = s.id 
         WHERE s.is_active = TRUE 
@@ -592,7 +589,6 @@ def buyer_edit_account():
         full_name = request.form['full_name']
         phone = request.form['phone']
         
-        # Handle profile picture update
         if 'profile_pic' in request.files:
             file = request.files['profile_pic']
             if file and file.filename != '' and allowed_file(file.filename):
@@ -674,13 +670,11 @@ def toggle_seller(seller_id):
 def delete_seller(seller_id):
     conn = get_db()
     c = conn.cursor()
-    # First delete seller's products
     c.execute("DELETE FROM products WHERE seller_id = %s", (seller_id,))
-    # Then delete seller
     c.execute("DELETE FROM sellers WHERE id = %s", (seller_id,))
     conn.commit()
     conn.close()
-    flash('Seller and all their products deleted', 'success')
+    flash('Seller and all products deleted', 'success')
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/toggle_buyer/<int:buyer_id>')
